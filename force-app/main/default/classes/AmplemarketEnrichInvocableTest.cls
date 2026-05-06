@@ -10,19 +10,22 @@ private class AmplemarketEnrichInvocableTest {
         }
     }
 
+    private static void seedLeadMappings() {
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+                Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email', Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
+        };
+    }
+
     @IsTest
     static void singleRecordInvocationCallsService() {
         Lead l = new Lead(LastName = 'A', Company = 'C', Email = 'a@b.com');
         insert l;
-
-        AmplemarketEnrichmentService.testMappingOverride = new List<Amplemarket_Enrichment_Mapping__mdt>{
-            new Amplemarket_Enrichment_Mapping__mdt(
-                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
-                Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email', Is_Active__c = true),
-            new Amplemarket_Enrichment_Mapping__mdt(
-                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
-                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
-        };
+        seedLeadMappings();
         Test.setMock(HttpCalloutMock.class, new OkMock());
 
         AmplemarketEnrichInvocable.Request r = new AmplemarketEnrichInvocable.Request();
@@ -47,15 +50,7 @@ private class AmplemarketEnrichInvocableTest {
             new Lead(LastName = 'B', Company = 'C', Email = 'b@b.com')
         };
         insert leads;
-
-        AmplemarketEnrichmentService.testMappingOverride = new List<Amplemarket_Enrichment_Mapping__mdt>{
-            new Amplemarket_Enrichment_Mapping__mdt(
-                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
-                Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email', Is_Active__c = true),
-            new Amplemarket_Enrichment_Mapping__mdt(
-                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
-                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
-        };
+        seedLeadMappings();
         Test.setMock(HttpCalloutMock.class, new OkMock());
 
         List<AmplemarketEnrichInvocable.Request> reqs = new List<AmplemarketEnrichInvocable.Request>();
@@ -70,7 +65,6 @@ private class AmplemarketEnrichInvocableTest {
         Test.stopTest();
 
         System.assertEquals(2, out.size());
-        // Queueables run during stopTest; both leads should be updated.
         Integer updated = [SELECT COUNT() FROM Lead WHERE Title = 'VP' AND Id IN :leads];
         System.assertEquals(2, updated);
     }

@@ -4,5 +4,5 @@
     <label>Reveal Email</label>
     <defaultValue>false</defaultValue>
     <type>Checkbox</type>
-    <description>Set on the Match Input row keyed "email"; toggles reveal_email=true on /people/find. Consumes 1 email credit per call when the email is revealed.</description>
+    <description>Set on the Match Input row keyed "email" to toggle reveal_email=true on /people/find. Consumes 1 email credit per call when an email is revealed.</description>
 </CustomField>

@@ -27,6 +27,36 @@
         <viewAllRecords>false</viewAllRecords>
         <modifyAllRecords>false</modifyAllRecords>
     </objectPermissions>
+    <objectPermissions>
+        <object>Amplemarket_Mapping__c</object>
+        <allowCreate>false</allowCreate>
+        <allowRead>true</allowRead>
+        <allowEdit>false</allowEdit>
+        <allowDelete>false</allowDelete>
+        <viewAllRecords>true</viewAllRecords>
+        <modifyAllRecords>false</modifyAllRecords>
+    </objectPermissions>
+
+    <fieldPermissions>
+        <field>Amplemarket_Mapping__c.Reveal_Email__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Amplemarket_Mapping__c.Reveal_Phone__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Amplemarket_Mapping__c.Update_Behavior__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Amplemarket_Mapping__c.Is_Active__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
 
     <fieldPermissions>
         <field>Enrichment_Log__c.Endpoint__c</field>

@@ -13,16 +13,16 @@ private class AmplemarketEnrichmentServiceTest {
         }
     }
 
-    private static List<Amplemarket_Enrichment_Mapping__mdt> leadMappings() {
-        return new List<Amplemarket_Enrichment_Mapping__mdt>{
-            new Amplemarket_Enrichment_Mapping__mdt(
+    private static void seedLeadMappings() {
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
                 Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email',
                 Reveal_Email__c = true, Is_Active__c = true),
-            new Amplemarket_Enrichment_Mapping__mdt(
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
                 Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true),
-            new Amplemarket_Enrichment_Mapping__mdt(
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
                 Amplemarket_Field__c = 'company.industry', Salesforce_Field__c = 'Industry', Is_Active__c = true)
         };
@@ -32,8 +32,8 @@ private class AmplemarketEnrichmentServiceTest {
     static void enrichSinglePersonHappyPath() {
         Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
         insert l;
+        seedLeadMappings();
 
-        AmplemarketEnrichmentService.testMappingOverride = leadMappings();
         String json = '{"id":"abc","title":"VP","company":{"industry":"SaaS"},"email":"jane@acme.com"}';
         Test.setMock(HttpCalloutMock.class, new PersonMock(200, json));
 
@@ -52,7 +52,7 @@ private class AmplemarketEnrichmentServiceTest {
     static void enrichSingleSurfacesApiError() {
         Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
         insert l;
-        AmplemarketEnrichmentService.testMappingOverride = leadMappings();
+        seedLeadMappings();
         Test.setMock(HttpCalloutMock.class, new PersonMock(404, '{"error":"not_found"}'));
 
         Test.startTest();
@@ -67,7 +67,6 @@ private class AmplemarketEnrichmentServiceTest {
     static void enrichSingleErrorsWhenNoMappings() {
         Lead l = new Lead(LastName = 'X', Company = 'Y');
         insert l;
-        AmplemarketEnrichmentService.testMappingOverride = new List<Amplemarket_Enrichment_Mapping__mdt>();
 
         Test.startTest();
         AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
@@ -81,7 +80,7 @@ private class AmplemarketEnrichmentServiceTest {
     static void enrichSingleErrorsWhenMatchInputsHaveNoValues() {
         Lead l = new Lead(LastName = 'X', Company = 'Y');
         insert l;
-        AmplemarketEnrichmentService.testMappingOverride = leadMappings();
+        seedLeadMappings();
 
         Test.startTest();
         AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
@@ -95,11 +94,11 @@ private class AmplemarketEnrichmentServiceTest {
     static void enrichSingleHandlesCompanyEndpoint() {
         Account a = new Account(Name = 'Acme', Website = 'acme.com');
         insert a;
-        AmplemarketEnrichmentService.testMappingOverride = new List<Amplemarket_Enrichment_Mapping__mdt>{
-            new Amplemarket_Enrichment_Mapping__mdt(
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Account', Mapping_Type__c = 'Match Input',
                 Amplemarket_Field__c = 'domain', Salesforce_Field__c = 'Website', Is_Active__c = true),
-            new Amplemarket_Enrichment_Mapping__mdt(
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Account', Mapping_Type__c = 'Output Field',
                 Amplemarket_Field__c = 'estimated_number_of_employees', Salesforce_Field__c = 'NumberOfEmployees', Is_Active__c = true)
         };

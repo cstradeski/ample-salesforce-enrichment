@@ -1,9 +1,5 @@
 public with sharing class AmplemarketSettingsController {
 
-    /**
-     * Catalog returned to the LWC: per-object lists of (a) supported match-input keys
-     * and (b) supported Amplemarket output fields, plus the SObject's writeable fields.
-     */
     public class ObjectCatalog {
         @AuraEnabled public String objectApiName;
         @AuraEnabled public List<Map<String, String>> matchInputKeys;
@@ -12,13 +8,14 @@ public with sharing class AmplemarketSettingsController {
     }
 
     public class Mapping {
-        @AuraEnabled public String developerName;
+        @AuraEnabled public Id id;
         @AuraEnabled public String objectApiName;
         @AuraEnabled public String mappingType;
         @AuraEnabled public String amplemarketField;
         @AuraEnabled public String salesforceField;
         @AuraEnabled public Boolean revealEmail;
         @AuraEnabled public Boolean revealPhone;
+        @AuraEnabled public String updateBehavior;
         @AuraEnabled public Boolean isActive;
     }
 
@@ -69,86 +66,78 @@ public with sharing class AmplemarketSettingsController {
     @AuraEnabled(cacheable=false)
     public static List<Mapping> getMappings() {
         List<Mapping> out = new List<Mapping>();
-        for (Amplemarket_Enrichment_Mapping__mdt m : [
-            SELECT DeveloperName, Object_API_Name__c, Mapping_Type__c,
+        for (Amplemarket_Mapping__c m : [
+            SELECT Id, Object_API_Name__c, Mapping_Type__c,
                    Amplemarket_Field__c, Salesforce_Field__c,
-                   Reveal_Email__c, Reveal_Phone__c, Is_Active__c
-            FROM Amplemarket_Enrichment_Mapping__mdt
+                   Reveal_Email__c, Reveal_Phone__c,
+                   Update_Behavior__c, Is_Active__c
+            FROM Amplemarket_Mapping__c
             ORDER BY Object_API_Name__c, Mapping_Type__c, Amplemarket_Field__c
         ]) {
             Mapping mp = new Mapping();
-            mp.developerName = m.DeveloperName;
+            mp.id = m.Id;
             mp.objectApiName = m.Object_API_Name__c;
             mp.mappingType = m.Mapping_Type__c;
             mp.amplemarketField = m.Amplemarket_Field__c;
             mp.salesforceField = m.Salesforce_Field__c;
             mp.revealEmail = m.Reveal_Email__c;
             mp.revealPhone = m.Reveal_Phone__c;
+            mp.updateBehavior = m.Update_Behavior__c;
             mp.isActive = m.Is_Active__c;
             out.add(mp);
         }
         return out;
     }
 
+    /**
+     * Replaces all stored mappings with the supplied list. Inserts new rows,
+     * updates existing rows by Id, and deletes any pre-existing rows the caller
+     * did not include.
+     */
     @AuraEnabled
-    public static Id saveMappings(List<Mapping> mappings) {
-        if (!FeatureManagement.checkPermission('Manage_Amplemarket_Settings') && !isAdmin()) {
-            throw new AuraHandledException('You do not have permission to manage Amplemarket settings.');
+    public static void saveMappings(List<Mapping> mappings) {
+        if (!Schema.SObjectType.Amplemarket_Mapping__c.isUpdateable()) {
+            throw new AuraHandledException('You do not have edit access to Amplemarket Mappings.');
         }
-        if (mappings == null || mappings.isEmpty()) {
-            throw new AuraHandledException('No mappings supplied.');
-        }
-        List<AmplemarketMetadataDeployer.Row> rows = new List<AmplemarketMetadataDeployer.Row>();
-        Set<String> seen = new Set<String>();
+        if (mappings == null) mappings = new List<Mapping>();
+
+        Map<Id, Amplemarket_Mapping__c> existing = new Map<Id, Amplemarket_Mapping__c>(
+            [SELECT Id FROM Amplemarket_Mapping__c]
+        );
+
+        List<Amplemarket_Mapping__c> toUpsert = new List<Amplemarket_Mapping__c>();
+        Set<Id> keepIds = new Set<Id>();
+
         for (Mapping m : mappings) {
-            AmplemarketMetadataDeployer.Row r = new AmplemarketMetadataDeployer.Row();
-            r.developerName = String.isNotBlank(m.developerName) ? m.developerName : buildDevName(m, seen);
-            r.label = m.objectApiName + ' / ' + m.mappingType + ' / ' + m.amplemarketField;
-            if (r.label.length() > 40) r.label = r.label.substring(0, 40);
-            r.objectApiName = m.objectApiName;
-            r.mappingType = m.mappingType;
-            r.amplemarketField = m.amplemarketField;
-            r.salesforceField = m.salesforceField;
-            r.revealEmail = m.revealEmail;
-            r.revealPhone = m.revealPhone;
-            r.isActive = m.isActive == null ? true : m.isActive;
-            rows.add(r);
+            Amplemarket_Mapping__c row = new Amplemarket_Mapping__c(
+                Object_API_Name__c = m.objectApiName,
+                Mapping_Type__c = m.mappingType,
+                Amplemarket_Field__c = m.amplemarketField,
+                Salesforce_Field__c = m.salesforceField,
+                Reveal_Email__c = m.revealEmail == true,
+                Reveal_Phone__c = m.revealPhone == true,
+                Update_Behavior__c = String.isBlank(m.updateBehavior) ? 'Always' : m.updateBehavior,
+                Is_Active__c = m.isActive == null ? true : m.isActive
+            );
+            if (m.id != null) {
+                row.Id = m.id;
+                keepIds.add(m.id);
+            }
+            toUpsert.add(row);
         }
-        return AmplemarketMetadataDeployer.deployRows(rows);
-    }
 
-    @AuraEnabled
-    public static String getDeploymentStatus(Id jobId) {
-        if (jobId == null) return 'Unknown';
-        // Tooling API would be the canonical way; admins can check Setup → Deployment Status.
-        // We return a hint for the LWC to poll the standard Async Apex job table for context.
-        List<AsyncApexJob> jobs = [
-            SELECT Id, Status, ExtendedStatus
-            FROM AsyncApexJob
-            WHERE Id = :jobId
-            LIMIT 1
-        ];
-        return jobs.isEmpty() ? 'Pending' : jobs[0].Status;
-    }
-
-    private static String buildDevName(Mapping m, Set<String> seen) {
-        String base = (m.objectApiName + '_' + m.mappingType + '_' + m.amplemarketField)
-            .replaceAll('[^A-Za-z0-9_]', '_')
-            .replaceAll('_+', '_');
-        if (base.length() > 35) base = base.substring(0, 35);
-        String name = base;
-        Integer i = 1;
-        while (seen.contains(name)) {
-            name = base + '_' + i++;
+        List<Amplemarket_Mapping__c> toDelete = new List<Amplemarket_Mapping__c>();
+        for (Id existingId : existing.keySet()) {
+            if (!keepIds.contains(existingId)) toDelete.add(existing.get(existingId));
         }
-        seen.add(name);
-        return name;
-    }
 
-    private static Boolean isAdmin() {
-        return [SELECT Id FROM PermissionSetAssignment
-                WHERE AssigneeId = :UserInfo.getUserId()
-                  AND PermissionSet.Name = 'Amplemarket_Admin'
-                LIMIT 1].size() > 0;
+        Savepoint sp = Database.setSavepoint();
+        try {
+            if (!toUpsert.isEmpty()) upsert toUpsert;
+            if (!toDelete.isEmpty()) delete toDelete;
+        } catch (DmlException de) {
+            Database.rollback(sp);
+            throw new AuraHandledException('Could not save mappings: ' + de.getDmlMessage(0));
+        }
     }
 }

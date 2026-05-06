@@ -1,12 +1,16 @@
 import { LightningElement, track, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { refreshApex } from '@salesforce/apex';
 import canManage from '@salesforce/customPermission/Manage_Amplemarket_Settings';
 import getCatalog from '@salesforce/apex/AmplemarketSettingsController.getCatalog';
 import getMappings from '@salesforce/apex/AmplemarketSettingsController.getMappings';
 import saveMappings from '@salesforce/apex/AmplemarketSettingsController.saveMappings';
-import getDeploymentStatus from '@salesforce/apex/AmplemarketSettingsController.getDeploymentStatus';
 
 const OBJECTS = ['Lead', 'Contact', 'Account'];
+const UPDATE_BEHAVIOR_OPTIONS = [
+    { label: 'Always', value: 'Always' },
+    { label: 'Only if Empty', value: 'Only if Empty' }
+];
 
 export default class AmplemarketSettings extends LightningElement {
     @track activeObject = 'Lead';
@@ -18,8 +22,6 @@ export default class AmplemarketSettings extends LightningElement {
     };
     isLoading = true;
     isSaving = false;
-    deployJobId;
-    deployStatus;
 
     get canManage() {
         return canManage;
@@ -43,6 +45,10 @@ export default class AmplemarketSettings extends LightningElement {
 
     get isPersonObject() {
         return this.activeObject === 'Lead' || this.activeObject === 'Contact';
+    }
+
+    get updateBehaviorOptions() {
+        return UPDATE_BEHAVIOR_OPTIONS;
     }
 
     @wire(getCatalog)
@@ -76,7 +82,11 @@ export default class AmplemarketSettings extends LightningElement {
                     if (r.amplemarketField === 'email' && r.revealEmail) bucket.reveals.email = true;
                     if (r.revealPhone) bucket.reveals.phone = true;
                 } else if (r.mappingType === 'Output Field') {
-                    bucket.outputs.push({ ...r, key: r.developerName || `${r.amplemarketField}_${r.salesforceField}` });
+                    bucket.outputs.push({
+                        ...r,
+                        updateBehavior: r.updateBehavior || 'Always',
+                        key: r.id || `new_${Math.random()}`
+                    });
                 }
             });
             // Ensure every match-input key has a row (so the UI shows all keys)
@@ -138,9 +148,19 @@ export default class AmplemarketSettings extends LightningElement {
             mappingType: 'Output Field',
             amplemarketField: '',
             salesforceField: '',
+            updateBehavior: 'Always',
             isActive: true
         });
         this.mappingsByObject = { ...this.mappingsByObject };
+    }
+
+    handleOutputBehaviorChange(event) {
+        const key = event.target.dataset.key;
+        const row = this.mappingsByObject[this.activeObject].outputs.find((o) => o.key === key);
+        if (row) {
+            row.updateBehavior = event.detail.value;
+            this.mappingsByObject = { ...this.mappingsByObject };
+        }
     }
 
     handleOutputAmField(event) {
@@ -188,7 +208,7 @@ export default class AmplemarketSettings extends LightningElement {
             bucket.matchInputs.forEach((mi) => {
                 if (!mi.salesforceField) return;
                 flat.push({
-                    developerName: mi.developerName,
+                    id: mi.id,
                     objectApiName: obj,
                     mappingType: 'Match Input',
                     amplemarketField: mi.amplemarketField,
@@ -201,50 +221,29 @@ export default class AmplemarketSettings extends LightningElement {
             bucket.outputs.forEach((o) => {
                 if (!o.amplemarketField || !o.salesforceField) return;
                 flat.push({
-                    developerName: o.developerName,
+                    id: o.id,
                     objectApiName: obj,
                     mappingType: 'Output Field',
                     amplemarketField: o.amplemarketField,
                     salesforceField: o.salesforceField,
                     revealEmail: false,
                     revealPhone: false,
+                    updateBehavior: o.updateBehavior || 'Always',
                     isActive: o.isActive !== false
                 });
             });
         });
-        if (flat.length === 0) {
-            this.toast('Nothing to save', 'Configure at least one mapping first.', 'warning');
-            return;
-        }
+
         this.isSaving = true;
         try {
-            const jobId = await saveMappings({ mappings: flat });
-            this.deployJobId = jobId;
-            this.deployStatus = 'Pending';
-            this.toast('Saved', 'Deployment started. Status will update shortly.', 'success');
-            this.pollDeployment();
+            await saveMappings({ mappings: flat });
+            this.toast('Saved', `${flat.length} mapping(s) saved.`, 'success');
+            await this.loadExistingMappings();
         } catch (e) {
             this.toast('Save failed', this.extractError(e), 'error');
         } finally {
             this.isSaving = false;
         }
-    }
-
-    pollDeployment() {
-        if (!this.deployJobId) return;
-        let attempts = 0;
-        const tick = async () => {
-            attempts++;
-            try {
-                const status = await getDeploymentStatus({ jobId: this.deployJobId });
-                this.deployStatus = status;
-                if (status === 'Completed' || status === 'Failed' || status === 'Aborted') return;
-            } catch (e) {
-                // swallow polling errors
-            }
-            if (attempts < 20) setTimeout(tick, 3000);
-        };
-        setTimeout(tick, 3000);
     }
 
     toast(title, message, variant) {

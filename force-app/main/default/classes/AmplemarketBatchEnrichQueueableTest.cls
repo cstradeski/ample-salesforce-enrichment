@@ -19,11 +19,11 @@ private class AmplemarketBatchEnrichQueueableTest {
         };
         insert leads;
 
-        AmplemarketEnrichmentService.testMappingOverride = new List<Amplemarket_Enrichment_Mapping__mdt>{
-            new Amplemarket_Enrichment_Mapping__mdt(
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
                 Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email', Is_Active__c = true),
-            new Amplemarket_Enrichment_Mapping__mdt(
+            new Amplemarket_Mapping__c(
                 Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
                 Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
         };
@@ -44,7 +44,6 @@ private class AmplemarketBatchEnrichQueueableTest {
         Test.startTest();
         new AmplemarketBatchEnrichQueueable('Lead', new List<Id>()).execute(null);
         Test.stopTest();
-        // Should reach this point with no exception
         System.assert(true);
     }
 }

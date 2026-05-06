@@ -94,7 +94,7 @@
 
                         <template for:each={currentMappings.outputs} for:item="o">
                             <div key={o.key} class="slds-grid slds-gutters slds-m-bottom_x-small">
-                                <div class="slds-col slds-size_5-of-12">
+                                <div class="slds-col slds-size_4-of-12">
                                     <lightning-combobox
                                         label="Amplemarket field"
                                         value={o.amplemarketField}
@@ -103,13 +103,22 @@
                                         onchange={handleOutputAmField}>
                                     </lightning-combobox>
                                 </div>
-                                <div class="slds-col slds-size_5-of-12">
+                                <div class="slds-col slds-size_4-of-12">
                                     <lightning-combobox
                                         label="Salesforce field"
                                         value={o.salesforceField}
                                         options={currentCatalog.sobjectFields}
                                         data-key={o.key}
                                         onchange={handleOutputSfField}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_2-of-12">
+                                    <lightning-combobox
+                                        label="When to update"
+                                        value={o.updateBehavior}
+                                        options={updateBehaviorOptions}
+                                        data-key={o.key}
+                                        onchange={handleOutputBehaviorChange}>
                                     </lightning-combobox>
                                 </div>
                                 <div class="slds-col slds-size_1-of-12 slds-align-bottom">
@@ -134,11 +143,6 @@
                     </div>
                 </template>
 
-                <template if:true={deployJobId}>
-                    <div class="slds-m-top_large slds-text-body_small">
-                        Deployment {deployJobId}: <strong>{deployStatus}</strong>
-                    </div>
-                </template>
             </div>
         </template>
     </lightning-card>

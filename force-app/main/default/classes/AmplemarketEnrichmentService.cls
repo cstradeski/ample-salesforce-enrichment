@@ -24,9 +24,9 @@ public with sharing class AmplemarketEnrichmentService {
             ? objectApiName
             : recordId.getSObjectType().getDescribe().getName();
 
-        Map<String, List<Amplemarket_Enrichment_Mapping__mdt>> grouped = loadMappings(objApi);
-        List<Amplemarket_Enrichment_Mapping__mdt> matchInputs = grouped.get(AmplemarketDTO.MAPPING_MATCH_INPUT);
-        List<Amplemarket_Enrichment_Mapping__mdt> outputs = grouped.get(AmplemarketDTO.MAPPING_OUTPUT_FIELD);
+        Map<String, List<Amplemarket_Mapping__c>> grouped = loadMappings(objApi);
+        List<Amplemarket_Mapping__c> matchInputs = grouped.get(AmplemarketDTO.MAPPING_MATCH_INPUT);
+        List<Amplemarket_Mapping__c> outputs = grouped.get(AmplemarketDTO.MAPPING_OUTPUT_FIELD);
 
         if (matchInputs == null || matchInputs.isEmpty()) {
             result.message = 'No active match-input mappings configured for ' + objApi;
@@ -36,7 +36,7 @@ public with sharing class AmplemarketEnrichmentService {
 
         SObject record;
         try {
-            record = querySourceRecord(objApi, recordId, matchInputs);
+            record = querySourceRecord(objApi, recordId, matchInputs, outputs);
         } catch (Exception e) {
             result.message = 'Could not load source record: ' + e.getMessage();
             result.logId = writeLog(recordId, objApi, null, 'Error', null, null, result.message, null, started);
@@ -47,7 +47,7 @@ public with sharing class AmplemarketEnrichmentService {
         Boolean revealEmail = false;
         Boolean revealPhone = false;
 
-        for (Amplemarket_Enrichment_Mapping__mdt m : matchInputs) {
+        for (Amplemarket_Mapping__c m : matchInputs) {
             if (m.Is_Active__c != true) continue;
             String key = m.Amplemarket_Field__c;
             if (String.isBlank(key)) continue;
@@ -107,7 +107,8 @@ public with sharing class AmplemarketEnrichmentService {
 
         SObject toUpdate = Schema.getGlobalDescribe().get(objApi).newSObject(recordId);
         AmplemarketFieldMapper.FieldMapResult mapRes = AmplemarketFieldMapper.applyOutputs(
-            toUpdate, objApi, parsed, outputs == null ? new List<Amplemarket_Enrichment_Mapping__mdt>() : outputs
+            toUpdate, record, objApi, parsed,
+            outputs == null ? new List<Amplemarket_Mapping__c>() : outputs
         );
         result.fieldsApplied = mapRes.fieldsApplied;
 
@@ -135,41 +136,35 @@ public with sharing class AmplemarketEnrichmentService {
         return result;
     }
 
-    @TestVisible
-    private static List<Amplemarket_Enrichment_Mapping__mdt> testMappingOverride;
-
-    private static Map<String, List<Amplemarket_Enrichment_Mapping__mdt>> loadMappings(String objectApiName) {
-        Map<String, List<Amplemarket_Enrichment_Mapping__mdt>> grouped = new Map<String, List<Amplemarket_Enrichment_Mapping__mdt>>{
-            AmplemarketDTO.MAPPING_MATCH_INPUT => new List<Amplemarket_Enrichment_Mapping__mdt>(),
-            AmplemarketDTO.MAPPING_OUTPUT_FIELD => new List<Amplemarket_Enrichment_Mapping__mdt>()
+    private static Map<String, List<Amplemarket_Mapping__c>> loadMappings(String objectApiName) {
+        Map<String, List<Amplemarket_Mapping__c>> grouped = new Map<String, List<Amplemarket_Mapping__c>>{
+            AmplemarketDTO.MAPPING_MATCH_INPUT => new List<Amplemarket_Mapping__c>(),
+            AmplemarketDTO.MAPPING_OUTPUT_FIELD => new List<Amplemarket_Mapping__c>()
         };
-        List<Amplemarket_Enrichment_Mapping__mdt> source;
-        if (Test.isRunningTest() && testMappingOverride != null) {
-            source = new List<Amplemarket_Enrichment_Mapping__mdt>();
-            for (Amplemarket_Enrichment_Mapping__mdt m : testMappingOverride) {
-                if (m.Object_API_Name__c == objectApiName && m.Is_Active__c == true) source.add(m);
-            }
-        } else {
-            source = [
-                SELECT Object_API_Name__c, Mapping_Type__c, Amplemarket_Field__c,
-                       Salesforce_Field__c, Reveal_Email__c, Reveal_Phone__c, Is_Active__c
-                FROM Amplemarket_Enrichment_Mapping__mdt
-                WHERE Object_API_Name__c = :objectApiName
-                  AND Is_Active__c = true
-            ];
-        }
-        for (Amplemarket_Enrichment_Mapping__mdt m : source) {
-            List<Amplemarket_Enrichment_Mapping__mdt> bucket = grouped.get(m.Mapping_Type__c);
+        for (Amplemarket_Mapping__c m : [
+            SELECT Object_API_Name__c, Mapping_Type__c, Amplemarket_Field__c,
+                   Salesforce_Field__c, Reveal_Email__c, Reveal_Phone__c,
+                   Update_Behavior__c, Is_Active__c
+            FROM Amplemarket_Mapping__c
+            WHERE Object_API_Name__c = :objectApiName
+              AND Is_Active__c = true
+        ]) {
+            List<Amplemarket_Mapping__c> bucket = grouped.get(m.Mapping_Type__c);
             if (bucket != null) bucket.add(m);
         }
         return grouped;
     }
 
     private static SObject querySourceRecord(String objectApiName, Id recordId,
-            List<Amplemarket_Enrichment_Mapping__mdt> matchInputs) {
+            List<Amplemarket_Mapping__c> matchInputs, List<Amplemarket_Mapping__c> outputs) {
         Set<String> fields = new Set<String>{ 'Id' };
-        for (Amplemarket_Enrichment_Mapping__mdt m : matchInputs) {
+        for (Amplemarket_Mapping__c m : matchInputs) {
             if (String.isNotBlank(m.Salesforce_Field__c)) fields.add(m.Salesforce_Field__c);
+        }
+        if (outputs != null) {
+            for (Amplemarket_Mapping__c m : outputs) {
+                if (String.isNotBlank(m.Salesforce_Field__c)) fields.add(m.Salesforce_Field__c);
+            }
         }
         String soql = 'SELECT ' + String.join(new List<String>(fields), ', ')
             + ' FROM ' + objectApiName + ' WHERE Id = :recordId LIMIT 1';

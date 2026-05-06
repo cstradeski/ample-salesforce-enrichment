@@ -9,15 +9,18 @@ public with sharing class AmplemarketFieldMapper {
     /**
      * Apply Amplemarket response data to an SObject in-memory.
      * @param record         SObject to populate (caller does the DML).
+     * @param existing       The currently-stored SObject, used to decide whether to skip
+     *                       under "Only if Empty" update behavior. May be null to skip the check.
      * @param objectApiName  e.g. "Lead" — used to describe target field types.
      * @param responseRoot   Parsed JSON map from Amplemarket.
-     * @param outputMappings rows from Amplemarket_Enrichment_Mapping__mdt where Mapping_Type__c='Output Field'.
+     * @param outputMappings rows from Amplemarket_Mapping__c where Mapping_Type__c='Output Field'.
      */
     public static FieldMapResult applyOutputs(
         SObject record,
+        SObject existing,
         String objectApiName,
         Map<String, Object> responseRoot,
-        List<Amplemarket_Enrichment_Mapping__mdt> outputMappings
+        List<Amplemarket_Mapping__c> outputMappings
     ) {
         FieldMapResult result = new FieldMapResult();
         if (record == null || responseRoot == null || outputMappings == null) {
@@ -27,7 +30,7 @@ public with sharing class AmplemarketFieldMapper {
         Map<String, Schema.SObjectField> fieldMap = Schema.getGlobalDescribe()
             .get(objectApiName).getDescribe().fields.getMap();
 
-        for (Amplemarket_Enrichment_Mapping__mdt m : outputMappings) {
+        for (Amplemarket_Mapping__c m : outputMappings) {
             if (m.Is_Active__c != true) continue;
             String sfField = m.Salesforce_Field__c;
             String amField = m.Amplemarket_Field__c;
@@ -42,6 +45,12 @@ public with sharing class AmplemarketFieldMapper {
             Schema.DescribeFieldResult dfr = token.getDescribe();
             if (!dfr.isUpdateable()) {
                 result.warnings.add('Field not updateable: ' + sfField);
+                result.fieldsSkipped++;
+                continue;
+            }
+
+            if (m.Update_Behavior__c == 'Only if Empty' && existing != null
+                    && !isBlank(existing.get(token))) {
                 result.fieldsSkipped++;
                 continue;
             }
@@ -66,6 +75,13 @@ public with sharing class AmplemarketFieldMapper {
             }
         }
         return result;
+    }
+
+    @TestVisible
+    private static Boolean isBlank(Object v) {
+        if (v == null) return true;
+        if (v instanceof String) return String.isBlank((String) v);
+        return false;
     }
 
     /**
