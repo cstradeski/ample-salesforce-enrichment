@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Amplemarket_Field__c</fullName>
+    <label>Amplemarket Field</label>
+    <length>255</length>
+    <required>true</required>
+    <type>Text</type>
+    <description>JSON dot-path on the Amplemarket response (e.g. "title", "company.industry", "location_details.country") or a match-input key (e.g. "email", "linkedin_url").</description>
+</CustomField>

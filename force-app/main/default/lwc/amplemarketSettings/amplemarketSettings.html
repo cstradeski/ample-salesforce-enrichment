@@ -1,0 +1,145 @@
+<template>
+    <lightning-card title="Amplemarket Enrichment Settings" icon-name="standard:custom_notification">
+        <div slot="actions">
+            <template if:false={canManage}>
+                <lightning-badge label="Read-only" variant="warning"></lightning-badge>
+            </template>
+            <template if:true={canManage}>
+                <lightning-button
+                    label="Save"
+                    variant="brand"
+                    onclick={handleSave}
+                    disabled={isSaving}>
+                </lightning-button>
+            </template>
+        </div>
+
+        <template if:true={isLoading}>
+            <div class="slds-p-around_medium">
+                <lightning-spinner alternative-text="Loading"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <div class="slds-p-horizontal_medium">
+
+                <lightning-button-group>
+                    <template for:each={tabs} for:item="t">
+                        <lightning-button
+                            key={t.value}
+                            label={t.label}
+                            variant={t.variant}
+                            data-obj={t.value}
+                            onclick={handleTabClick}>
+                        </lightning-button>
+                    </template>
+                </lightning-button-group>
+
+                <template if:true={currentCatalog}>
+                    <div class="slds-m-top_medium">
+                        <h2 class="slds-text-heading_small slds-m-bottom_x-small">Match Inputs</h2>
+                        <p class="slds-text-body_small slds-m-bottom_small">
+                            Choose which Salesforce field on {activeObject} provides each value sent to Amplemarket as a match input.
+                        </p>
+                        <template for:each={currentMappings.matchInputs} for:item="mi">
+                            <div key={mi.amplemarketField} class="slds-grid slds-gutters slds-m-bottom_x-small">
+                                <div class="slds-col slds-size_1-of-3">
+                                    <lightning-input value={mi.amplemarketField} label="Amplemarket key" readonly></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_2-of-3">
+                                    <lightning-combobox
+                                        label="Salesforce field"
+                                        value={mi.salesforceField}
+                                        options={currentCatalog.sobjectFields}
+                                        data-key={mi.amplemarketField}
+                                        onchange={handleMatchFieldChange}
+                                        disabled={readOnly}>
+                                    </lightning-combobox>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template if:true={isPersonObject}>
+                            <div class="slds-grid slds-gutters slds-m-top_small">
+                                <div class="slds-col">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label="Reveal email (1 credit when revealed)"
+                                        checked={currentMappings.reveals.email}
+                                        onchange={handleRevealEmailChange}>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label="Reveal phone numbers (1 credit when revealed)"
+                                        checked={currentMappings.reveals.phone}
+                                        onchange={handleRevealPhoneChange}>
+                                    </lightning-input>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="slds-m-top_large">
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                            <h2 class="slds-text-heading_small">Output Fields</h2>
+                            <lightning-button
+                                label="Add field"
+                                icon-name="utility:add"
+                                onclick={handleAddOutput}
+                                disabled={readOnly}>
+                            </lightning-button>
+                        </div>
+
+                        <template for:each={currentMappings.outputs} for:item="o">
+                            <div key={o.key} class="slds-grid slds-gutters slds-m-bottom_x-small">
+                                <div class="slds-col slds-size_5-of-12">
+                                    <lightning-combobox
+                                        label="Amplemarket field"
+                                        value={o.amplemarketField}
+                                        options={currentCatalog.outputFields}
+                                        data-key={o.key}
+                                        onchange={handleOutputAmField}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_5-of-12">
+                                    <lightning-combobox
+                                        label="Salesforce field"
+                                        value={o.salesforceField}
+                                        options={currentCatalog.sobjectFields}
+                                        data-key={o.key}
+                                        onchange={handleOutputSfField}>
+                                    </lightning-combobox>
+                                </div>
+                                <div class="slds-col slds-size_1-of-12 slds-align-bottom">
+                                    <lightning-input
+                                        type="checkbox"
+                                        label="Active"
+                                        checked={o.isActive}
+                                        data-key={o.key}
+                                        onchange={handleOutputActiveChange}>
+                                    </lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-12 slds-align-bottom">
+                                    <lightning-button-icon
+                                        icon-name="utility:delete"
+                                        alternative-text="Remove"
+                                        data-key={o.key}
+                                        onclick={handleRemoveOutput}>
+                                    </lightning-button-icon>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <template if:true={deployJobId}>
+                    <div class="slds-m-top_large slds-text-body_small">
+                        Deployment {deployJobId}: <strong>{deployStatus}</strong>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </lightning-card>
+</template>

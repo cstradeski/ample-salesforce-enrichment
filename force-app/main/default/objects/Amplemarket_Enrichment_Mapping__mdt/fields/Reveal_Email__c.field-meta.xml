@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Reveal_Email__c</fullName>
+    <label>Reveal Email</label>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+    <description>Set on the Match Input row keyed "email"; toggles reveal_email=true on /people/find. Consumes 1 email credit per call when the email is revealed.</description>
+</CustomField>

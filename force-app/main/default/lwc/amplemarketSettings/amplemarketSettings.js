@@ -1,0 +1,261 @@
+import { LightningElement, track, wire } from 'lwc';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import canManage from '@salesforce/customPermission/Manage_Amplemarket_Settings';
+import getCatalog from '@salesforce/apex/AmplemarketSettingsController.getCatalog';
+import getMappings from '@salesforce/apex/AmplemarketSettingsController.getMappings';
+import saveMappings from '@salesforce/apex/AmplemarketSettingsController.saveMappings';
+import getDeploymentStatus from '@salesforce/apex/AmplemarketSettingsController.getDeploymentStatus';
+
+const OBJECTS = ['Lead', 'Contact', 'Account'];
+
+export default class AmplemarketSettings extends LightningElement {
+    @track activeObject = 'Lead';
+    @track catalogs = {};
+    @track mappingsByObject = {
+        Lead: { matchInputs: [], outputs: [], reveals: { email: false, phone: false } },
+        Contact: { matchInputs: [], outputs: [], reveals: { email: false, phone: false } },
+        Account: { matchInputs: [], outputs: [], reveals: { email: false, phone: false } }
+    };
+    isLoading = true;
+    isSaving = false;
+    deployJobId;
+    deployStatus;
+
+    get canManage() {
+        return canManage;
+    }
+
+    get tabs() {
+        return OBJECTS.map((o) => ({
+            label: o,
+            value: o,
+            variant: o === this.activeObject ? 'brand' : 'neutral'
+        }));
+    }
+
+    get currentCatalog() {
+        return this.catalogs[this.activeObject];
+    }
+
+    get currentMappings() {
+        return this.mappingsByObject[this.activeObject];
+    }
+
+    get isPersonObject() {
+        return this.activeObject === 'Lead' || this.activeObject === 'Contact';
+    }
+
+    @wire(getCatalog)
+    wiredCatalog({ data, error }) {
+        if (data) {
+            const map = {};
+            data.forEach((c) => {
+                map[c.objectApiName] = c;
+            });
+            this.catalogs = map;
+            this.loadExistingMappings();
+        } else if (error) {
+            this.toast('Error', this.extractError(error), 'error');
+            this.isLoading = false;
+        }
+    }
+
+    async loadExistingMappings() {
+        try {
+            const rows = await getMappings();
+            const grouped = {
+                Lead: { matchInputs: [], outputs: [], reveals: { email: false, phone: false } },
+                Contact: { matchInputs: [], outputs: [], reveals: { email: false, phone: false } },
+                Account: { matchInputs: [], outputs: [], reveals: { email: false, phone: false } }
+            };
+            rows.forEach((r) => {
+                const bucket = grouped[r.objectApiName];
+                if (!bucket) return;
+                if (r.mappingType === 'Match Input') {
+                    bucket.matchInputs.push({ ...r });
+                    if (r.amplemarketField === 'email' && r.revealEmail) bucket.reveals.email = true;
+                    if (r.revealPhone) bucket.reveals.phone = true;
+                } else if (r.mappingType === 'Output Field') {
+                    bucket.outputs.push({ ...r, key: r.developerName || `${r.amplemarketField}_${r.salesforceField}` });
+                }
+            });
+            // Ensure every match-input key has a row (so the UI shows all keys)
+            OBJECTS.forEach((obj) => {
+                const cat = this.catalogs[obj];
+                if (!cat) return;
+                cat.matchInputKeys.forEach((k) => {
+                    const exists = grouped[obj].matchInputs.find((mi) => mi.amplemarketField === k.value);
+                    if (!exists) {
+                        grouped[obj].matchInputs.push({
+                            objectApiName: obj,
+                            mappingType: 'Match Input',
+                            amplemarketField: k.value,
+                            salesforceField: '',
+                            revealEmail: false,
+                            revealPhone: false,
+                            isActive: true
+                        });
+                    }
+                });
+            });
+            this.mappingsByObject = grouped;
+        } catch (e) {
+            this.toast('Error', this.extractError(e), 'error');
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    handleTabClick(event) {
+        this.activeObject = event.target.dataset.obj;
+    }
+
+    handleMatchFieldChange(event) {
+        const key = event.target.dataset.key;
+        const value = event.detail.value;
+        const bucket = this.mappingsByObject[this.activeObject];
+        const row = bucket.matchInputs.find((mi) => mi.amplemarketField === key);
+        if (row) {
+            row.salesforceField = value;
+            this.mappingsByObject = { ...this.mappingsByObject };
+        }
+    }
+
+    handleRevealEmailChange(event) {
+        this.mappingsByObject[this.activeObject].reveals.email = event.target.checked;
+        this.mappingsByObject = { ...this.mappingsByObject };
+    }
+
+    handleRevealPhoneChange(event) {
+        this.mappingsByObject[this.activeObject].reveals.phone = event.target.checked;
+        this.mappingsByObject = { ...this.mappingsByObject };
+    }
+
+    handleAddOutput() {
+        this.mappingsByObject[this.activeObject].outputs.push({
+            key: `new_${Date.now()}`,
+            objectApiName: this.activeObject,
+            mappingType: 'Output Field',
+            amplemarketField: '',
+            salesforceField: '',
+            isActive: true
+        });
+        this.mappingsByObject = { ...this.mappingsByObject };
+    }
+
+    handleOutputAmField(event) {
+        const key = event.target.dataset.key;
+        const row = this.mappingsByObject[this.activeObject].outputs.find((o) => o.key === key);
+        if (row) {
+            row.amplemarketField = event.detail.value;
+            this.mappingsByObject = { ...this.mappingsByObject };
+        }
+    }
+
+    handleOutputSfField(event) {
+        const key = event.target.dataset.key;
+        const row = this.mappingsByObject[this.activeObject].outputs.find((o) => o.key === key);
+        if (row) {
+            row.salesforceField = event.detail.value;
+            this.mappingsByObject = { ...this.mappingsByObject };
+        }
+    }
+
+    handleOutputActiveChange(event) {
+        const key = event.target.dataset.key;
+        const row = this.mappingsByObject[this.activeObject].outputs.find((o) => o.key === key);
+        if (row) {
+            row.isActive = event.target.checked;
+            this.mappingsByObject = { ...this.mappingsByObject };
+        }
+    }
+
+    handleRemoveOutput(event) {
+        const key = event.target.dataset.key;
+        const bucket = this.mappingsByObject[this.activeObject];
+        bucket.outputs = bucket.outputs.filter((o) => o.key !== key);
+        this.mappingsByObject = { ...this.mappingsByObject };
+    }
+
+    async handleSave() {
+        if (!this.canManage) {
+            this.toast('Forbidden', 'You do not have the Manage Amplemarket Settings permission.', 'error');
+            return;
+        }
+        const flat = [];
+        OBJECTS.forEach((obj) => {
+            const bucket = this.mappingsByObject[obj];
+            bucket.matchInputs.forEach((mi) => {
+                if (!mi.salesforceField) return;
+                flat.push({
+                    developerName: mi.developerName,
+                    objectApiName: obj,
+                    mappingType: 'Match Input',
+                    amplemarketField: mi.amplemarketField,
+                    salesforceField: mi.salesforceField,
+                    revealEmail: mi.amplemarketField === 'email' && bucket.reveals.email,
+                    revealPhone: bucket.reveals.phone,
+                    isActive: mi.isActive !== false
+                });
+            });
+            bucket.outputs.forEach((o) => {
+                if (!o.amplemarketField || !o.salesforceField) return;
+                flat.push({
+                    developerName: o.developerName,
+                    objectApiName: obj,
+                    mappingType: 'Output Field',
+                    amplemarketField: o.amplemarketField,
+                    salesforceField: o.salesforceField,
+                    revealEmail: false,
+                    revealPhone: false,
+                    isActive: o.isActive !== false
+                });
+            });
+        });
+        if (flat.length === 0) {
+            this.toast('Nothing to save', 'Configure at least one mapping first.', 'warning');
+            return;
+        }
+        this.isSaving = true;
+        try {
+            const jobId = await saveMappings({ mappings: flat });
+            this.deployJobId = jobId;
+            this.deployStatus = 'Pending';
+            this.toast('Saved', 'Deployment started. Status will update shortly.', 'success');
+            this.pollDeployment();
+        } catch (e) {
+            this.toast('Save failed', this.extractError(e), 'error');
+        } finally {
+            this.isSaving = false;
+        }
+    }
+
+    pollDeployment() {
+        if (!this.deployJobId) return;
+        let attempts = 0;
+        const tick = async () => {
+            attempts++;
+            try {
+                const status = await getDeploymentStatus({ jobId: this.deployJobId });
+                this.deployStatus = status;
+                if (status === 'Completed' || status === 'Failed' || status === 'Aborted') return;
+            } catch (e) {
+                // swallow polling errors
+            }
+            if (attempts < 20) setTimeout(tick, 3000);
+        };
+        setTimeout(tick, 3000);
+    }
+
+    toast(title, message, variant) {
+        this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
+    }
+
+    extractError(err) {
+        if (!err) return 'Unknown error';
+        if (typeof err === 'string') return err;
+        if (err.body && err.body.message) return err.body.message;
+        if (err.message) return err.message;
+        return JSON.stringify(err);
+    }
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Reveal_Phone__c</fullName>
+    <label>Reveal Phone</label>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+    <description>Set on a Match Input row to toggle reveal_phone_numbers=true on /people/find. Consumes 1 phone credit per call when a phone number is revealed.</description>
+</CustomField>

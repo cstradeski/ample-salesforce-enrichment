@@ -1,0 +1,19 @@
+# Salesforce DX
+.sfdx/
+.sf/
+.localdevserver/
+*.log
+
+# Node / LWC tooling
+node_modules/
+npm-debug.log
+.eslintcache
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
