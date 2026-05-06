@@ -2,15 +2,25 @@
 
 After deploying this package to a sandbox or production org, complete the following.
 
-## 1. Set the Amplemarket API token on the External Credential
+## 1. Configure the External Credential principal + auth header
 
-1. Setup → **Named Credentials** → tab **External Credentials**
-2. Open **Amplemarket External**
-3. Under **Principals**, edit `AmplemarketBearer`
-4. In **Authentication Parameters**, set the parameter named `Token` to your Amplemarket API key (from your Amplemarket dashboard)
-5. Save
+The metadata deploys an empty `Amplemarket_External` external credential and an `Amplemarket_API` named credential that points at `https://api.amplemarket.com`. You finish the auth wiring in Setup so the bearer token is never committed to source control.
 
-The Named Credential `Amplemarket_API` will inject the bearer token automatically on every Apex callout — no code change needed.
+1. Setup → **Named Credentials** → tab **External Credentials** → open **Amplemarket External**
+2. **Principals** → **New**
+   - Parameter Name: `AmplemarketBearer`
+   - Identity Type: `Named Principal`
+   - Sequence Number: `1`
+   - Authentication Parameters → **New** → Name `Token`, Value `<your Amplemarket API key>`
+   - Save
+3. **Custom Headers** → **New**
+   - Name: `Authorization`
+   - Value: `Bearer {!$Credential.Amplemarket_External.Token}`
+   - Sequence Number: `1`
+   - Save
+4. **Permission Set Mappings** → **New** → assign the principal `AmplemarketBearer` to **Amplemarket Admin** and **Amplemarket User**
+
+The Named Credential will now inject the `Authorization: Bearer …` header automatically on every Apex callout — no code change needed. To rotate, just edit the `Token` parameter value.
 
 ## 2. Assign permission sets
 

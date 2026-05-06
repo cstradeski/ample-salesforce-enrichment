@@ -52,21 +52,6 @@
     </objectPermissions>
 
     <fieldPermissions>
-        <field>Enrichment_Log__c.Record_Id__c</field>
-        <readable>true</readable>
-        <editable>true</editable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <field>Enrichment_Log__c.Object_API_Name__c</field>
-        <readable>true</readable>
-        <editable>true</editable>
-    </fieldPermissions>
-    <fieldPermissions>
-        <field>Enrichment_Log__c.Status__c</field>
-        <readable>true</readable>
-        <editable>true</editable>
-    </fieldPermissions>
-    <fieldPermissions>
         <field>Enrichment_Log__c.Endpoint__c</field>
         <readable>true</readable>
         <editable>true</editable>
@@ -92,18 +77,8 @@
         <editable>true</editable>
     </fieldPermissions>
     <fieldPermissions>
-        <field>Enrichment_Log__c.Run_Timestamp__c</field>
-        <readable>true</readable>
-        <editable>true</editable>
-    </fieldPermissions>
-    <fieldPermissions>
         <field>Enrichment_Log__c.Batch_Request_Id__c</field>
         <readable>true</readable>
         <editable>true</editable>
     </fieldPermissions>
-
-    <externalCredentialPrincipalAccesses>
-        <externalCredentialPrincipal>Amplemarket_External-AmplemarketBearer</externalCredentialPrincipal>
-        <enabled>true</enabled>
-    </externalCredentialPrincipalAccesses>
 </PermissionSet>
