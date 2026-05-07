@@ -1,0 +1,55 @@
+<template>
+    <div class="slds-form-element">
+        <template if:true={label}>
+            <label class="slds-form-element__label">{label}</label>
+        </template>
+        <div class="slds-form-element__control">
+            <div class="slds-combobox_container">
+                <div class={comboboxClass}>
+                    <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
+                        <input
+                            type="text"
+                            class="slds-input slds-combobox__input"
+                            role="combobox"
+                            autocomplete="off"
+                            value={query}
+                            placeholder={placeholder}
+                            onfocus={handleFocus}
+                            oninput={handleInput}
+                            onkeydown={handleKeydown}
+                            onblur={handleBlur} />
+                        <span class="slds-icon_container slds-icon-utility-down slds-input__icon slds-input__icon_right">
+                            <lightning-icon icon-name="utility:down" size="x-small" alternative-text="Open"></lightning-icon>
+                        </span>
+                    </div>
+                    <template if:true={isOpen}>
+                        <div class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10" role="listbox">
+                            <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                                <template for:each={filteredOptions} for:item="opt">
+                                    <li key={opt.value} role="presentation" class="slds-listbox__item">
+                                        <div
+                                            class={opt.cssClass}
+                                            role="option"
+                                            data-value={opt.value}
+                                            onmousedown={handleOptionMouseDown}>
+                                            <span class="slds-media__body">
+                                                <span class="slds-listbox__option-text slds-listbox__option-text_entity">{opt.label}</span>
+                                            </span>
+                                        </div>
+                                    </li>
+                                </template>
+                                <template if:true={hasNoMatches}>
+                                    <li role="presentation" class="slds-listbox__item">
+                                        <div class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small slds-text-color_weak">
+                                            <span class="slds-media__body">No matches</span>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

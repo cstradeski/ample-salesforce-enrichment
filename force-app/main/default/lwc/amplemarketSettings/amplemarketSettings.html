@@ -47,14 +47,13 @@
                                     <lightning-input value={mi.amplemarketField} label="Amplemarket key" readonly></lightning-input>
                                 </div>
                                 <div class="slds-col slds-size_2-of-3">
-                                    <lightning-combobox
+                                    <c-amplemarket-field-picker
                                         label="Salesforce field"
                                         value={mi.salesforceField}
                                         options={currentCatalog.sobjectFields}
                                         data-key={mi.amplemarketField}
-                                        onchange={handleMatchFieldChange}
-                                        disabled={readOnly}>
-                                    </lightning-combobox>
+                                        onchange={handleMatchFieldChange}>
+                                    </c-amplemarket-field-picker>
                                 </div>
                             </div>
                         </template>
@@ -95,22 +94,22 @@
                         <template for:each={currentMappings.outputs} for:item="o">
                             <div key={o.key} class="slds-grid slds-gutters slds-m-bottom_x-small">
                                 <div class="slds-col slds-size_4-of-12">
-                                    <lightning-combobox
+                                    <c-amplemarket-field-picker
                                         label="Amplemarket field"
                                         value={o.amplemarketField}
                                         options={currentCatalog.outputFields}
                                         data-key={o.key}
                                         onchange={handleOutputAmField}>
-                                    </lightning-combobox>
+                                    </c-amplemarket-field-picker>
                                 </div>
                                 <div class="slds-col slds-size_4-of-12">
-                                    <lightning-combobox
+                                    <c-amplemarket-field-picker
                                         label="Salesforce field"
                                         value={o.salesforceField}
                                         options={currentCatalog.sobjectFields}
                                         data-key={o.key}
                                         onchange={handleOutputSfField}>
-                                    </lightning-combobox>
+                                    </c-amplemarket-field-picker>
                                 </div>
                                 <div class="slds-col slds-size_2-of-12">
                                     <lightning-combobox

@@ -142,7 +142,7 @@ export default class AmplemarketSettings extends LightningElement {
     }
 
     handleAddOutput() {
-        this.mappingsByObject[this.activeObject].outputs.push({
+        this.mappingsByObject[this.activeObject].outputs.unshift({
             key: `new_${Date.now()}`,
             objectApiName: this.activeObject,
             mappingType: 'Output Field',
