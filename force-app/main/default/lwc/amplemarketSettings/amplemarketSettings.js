@@ -206,7 +206,7 @@ export default class AmplemarketSettings extends LightningElement {
         OBJECTS.forEach((obj) => {
             const bucket = this.mappingsByObject[obj];
             bucket.matchInputs.forEach((mi) => {
-                if (!mi.salesforceField) return;
+                if (!mi.amplemarketField || !mi.salesforceField) return;
                 flat.push({
                     id: mi.id,
                     objectApiName: obj,
@@ -236,8 +236,21 @@ export default class AmplemarketSettings extends LightningElement {
 
         this.isSaving = true;
         try {
-            await saveMappings({ mappings: flat });
-            this.toast('Saved', `${flat.length} mapping(s) saved.`, 'success');
+            // eslint-disable-next-line no-console
+            console.log('Amplemarket save payload:', JSON.stringify(flat, null, 2));
+            const result = await saveMappings({ mappingsJson: JSON.stringify(flat) });
+            // eslint-disable-next-line no-console
+            console.log('saveMappings raw result:', JSON.stringify(result));
+            const saved = typeof result?.saved === 'number' ? result.saved : 0;
+            const reasons = Array.isArray(result?.skippedReasons) ? result.skippedReasons : [];
+            if (reasons.length > 0) {
+                // eslint-disable-next-line no-console
+                console.warn('Amplemarket skipped rows:', reasons);
+            }
+            const msg = reasons.length > 0
+                ? `${saved} saved; ${reasons.length} skipped. First reason: ${reasons[0]}`
+                : `${saved} mapping(s) saved.`;
+            this.toast('Saved', msg, reasons.length > 0 ? 'warning' : 'success');
             await this.loadExistingMappings();
         } catch (e) {
             this.toast('Save failed', this.extractError(e), 'error');

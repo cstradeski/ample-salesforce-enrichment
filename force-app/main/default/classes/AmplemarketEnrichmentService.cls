@@ -55,7 +55,8 @@ public with sharing class AmplemarketEnrichmentService {
             if (m.Reveal_Phone__c == true) revealPhone = true;
             Object val = record.get(m.Salesforce_Field__c);
             if (val != null && String.isNotBlank(String.valueOf(val))) {
-                queryParams.put(key, String.valueOf(val));
+                String normalized = normalizeMatchValue(key, String.valueOf(val));
+                if (String.isNotBlank(normalized)) queryParams.put(key, normalized);
             }
         }
 
@@ -68,7 +69,11 @@ public with sharing class AmplemarketEnrichmentService {
         String endpoint;
         if (AmplemarketDTO.isPersonObject(objApi)) {
             endpoint = '/people/find';
-            if (revealEmail) queryParams.put('reveal_email', 'true');
+            // Amplemarket rejects reveal_email when email is already a match input
+            // (and there's nothing to reveal). Same defensive check for phone.
+            if (revealEmail && !queryParams.containsKey('email')) {
+                queryParams.put('reveal_email', 'true');
+            }
             if (revealPhone) queryParams.put('reveal_phone_numbers', 'true');
         } else if (AmplemarketDTO.isCompanyObject(objApi)) {
             endpoint = '/companies/find';
@@ -133,7 +138,42 @@ public with sharing class AmplemarketEnrichmentService {
         result.message = msg;
         result.logId = writeLog(recordId, objApi, endpoint, status,
             JSON.serialize(queryParams), http.body, msg, credits, started);
+        writeFieldOutcomes(result.logId, mapRes.outcomes);
         return result;
+    }
+
+    @TestVisible
+    private static String normalizeMatchValue(String key, String raw) {
+        if (String.isBlank(raw)) return null;
+        String v = raw.trim();
+        if (key == 'domain' || key == 'company_domain') {
+            String d = v.toLowerCase();
+            Integer scheme = d.indexOf('://');
+            if (scheme >= 0) d = d.substring(scheme + 3);
+            if (d.startsWith('www.')) d = d.substring(4);
+            Integer slash = d.indexOf('/');
+            if (slash >= 0) d = d.substring(0, slash);
+            return d;
+        }
+        return v;
+    }
+
+    @TestVisible
+    private static void writeFieldOutcomes(Id logId, List<AmplemarketFieldMapper.FieldOutcome> outcomes) {
+        if (logId == null || outcomes == null || outcomes.isEmpty()) return;
+        List<Enrichment_Log_Field__c> rows = new List<Enrichment_Log_Field__c>();
+        for (AmplemarketFieldMapper.FieldOutcome o : outcomes) {
+            rows.add(new Enrichment_Log_Field__c(
+                Enrichment_Log__c = logId,
+                Salesforce_Field__c = o.salesforceField,
+                Amplemarket_Field__c = o.amplemarketField,
+                Old_Value__c = o.oldValue,
+                New_Value__c = o.newValue,
+                Status__c = o.status,
+                Error_Detail__c = o.errorDetail
+            ));
+        }
+        insert rows;
     }
 
     private static Map<String, List<Amplemarket_Mapping__c>> loadMappings(String objectApiName) {

@@ -111,6 +111,45 @@ private class AmplemarketFieldMapperTest {
     }
 
     @IsTest
+    static void outcomesCaptureAppliedSkippedAndNoValue() {
+        Lead populated = new Lead(LastName = 'X', Company = 'Y', Title = 'Existing', Industry = null);
+        insert populated;
+        Map<String, Object> response = (Map<String, Object>) JSON.deserializeUntyped(
+            '{"title":"New","company":{"industry":"SaaS"}}'
+        );
+        List<Amplemarket_Mapping__c> mappings = new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title',
+                Update_Behavior__c = 'Only if Empty', Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'company.industry', Salesforce_Field__c = 'Industry',
+                Update_Behavior__c = 'Always', Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'unknown_path', Salesforce_Field__c = 'FirstName',
+                Update_Behavior__c = 'Always', Is_Active__c = true)
+        };
+        Lead toUpdate = new Lead(Id = populated.Id);
+        AmplemarketFieldMapper.FieldMapResult res = AmplemarketFieldMapper.applyOutputs(
+            toUpdate, populated, 'Lead', response, mappings
+        );
+
+        System.assertEquals(3, res.outcomes.size());
+        Map<String, AmplemarketFieldMapper.FieldOutcome> byField = new Map<String, AmplemarketFieldMapper.FieldOutcome>();
+        for (AmplemarketFieldMapper.FieldOutcome o : res.outcomes) byField.put(o.salesforceField, o);
+
+        System.assertEquals('Skipped - Already Populated', byField.get('Title').status);
+        System.assertEquals('Existing', byField.get('Title').oldValue);
+
+        System.assertEquals('Applied', byField.get('Industry').status);
+        System.assertEquals('SaaS', byField.get('Industry').newValue);
+
+        System.assertEquals('Skipped - No Value', byField.get('FirstName').status);
+    }
+
+    @IsTest
     static void coerceTruncatesLongStrings() {
         Schema.DescribeFieldResult dfr = Lead.Title.getDescribe();
         String longVal = '';

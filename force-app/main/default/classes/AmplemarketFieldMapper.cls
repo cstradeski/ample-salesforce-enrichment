@@ -1,9 +1,24 @@
 public with sharing class AmplemarketFieldMapper {
 
+    public static final String STATUS_APPLIED = 'Applied';
+    public static final String STATUS_SKIPPED_POPULATED = 'Skipped - Already Populated';
+    public static final String STATUS_SKIPPED_NO_VALUE = 'Skipped - No Value';
+    public static final String STATUS_ERROR = 'Error';
+
+    public class FieldOutcome {
+        public String salesforceField;
+        public String amplemarketField;
+        public String oldValue;
+        public String newValue;
+        public String status;
+        public String errorDetail;
+    }
+
     public class FieldMapResult {
         public Integer fieldsApplied = 0;
         public Integer fieldsSkipped = 0;
         public List<String> warnings = new List<String>();
+        public List<FieldOutcome> outcomes = new List<FieldOutcome>();
     }
 
     /**
@@ -36,28 +51,44 @@ public with sharing class AmplemarketFieldMapper {
             String amField = m.Amplemarket_Field__c;
             if (String.isBlank(sfField) || String.isBlank(amField)) continue;
 
+            FieldOutcome outcome = new FieldOutcome();
+            outcome.salesforceField = sfField;
+            outcome.amplemarketField = amField;
+
             Schema.SObjectField token = fieldMap.get(sfField.toLowerCase());
             if (token == null) {
-                result.warnings.add('Unknown SF field: ' + sfField);
+                outcome.status = STATUS_ERROR;
+                outcome.errorDetail = 'Unknown SF field: ' + sfField;
+                result.warnings.add(outcome.errorDetail);
                 result.fieldsSkipped++;
+                result.outcomes.add(outcome);
                 continue;
             }
             Schema.DescribeFieldResult dfr = token.getDescribe();
             if (!dfr.isUpdateable()) {
-                result.warnings.add('Field not updateable: ' + sfField);
+                outcome.status = STATUS_ERROR;
+                outcome.errorDetail = 'Field not updateable: ' + sfField;
+                result.warnings.add(outcome.errorDetail);
                 result.fieldsSkipped++;
+                result.outcomes.add(outcome);
                 continue;
             }
 
-            if (m.Update_Behavior__c == 'Only if Empty' && existing != null
-                    && !isBlank(existing.get(token))) {
+            Object existingVal = existing == null ? null : existing.get(token);
+            outcome.oldValue = stringifyValue(existingVal);
+
+            if (m.Update_Behavior__c == 'Only if Empty' && !isBlank(existingVal)) {
+                outcome.status = STATUS_SKIPPED_POPULATED;
                 result.fieldsSkipped++;
+                result.outcomes.add(outcome);
                 continue;
             }
 
             Object raw = readPath(responseRoot, amField);
             if (raw == null) {
+                outcome.status = STATUS_SKIPPED_NO_VALUE;
                 result.fieldsSkipped++;
+                result.outcomes.add(outcome);
                 continue;
             }
 
@@ -65,14 +96,21 @@ public with sharing class AmplemarketFieldMapper {
                 Object coerced = coerce(raw, dfr);
                 if (coerced != null) {
                     record.put(token, coerced);
+                    outcome.newValue = stringifyValue(coerced);
+                    outcome.status = STATUS_APPLIED;
                     result.fieldsApplied++;
                 } else {
+                    outcome.status = STATUS_SKIPPED_NO_VALUE;
                     result.fieldsSkipped++;
                 }
             } catch (Exception e) {
+                outcome.status = STATUS_ERROR;
+                outcome.errorDetail = e.getMessage();
+                outcome.newValue = stringifyValue(raw);
                 result.warnings.add(sfField + ' <- ' + amField + ': ' + e.getMessage());
                 result.fieldsSkipped++;
             }
+            result.outcomes.add(outcome);
         }
         return result;
     }
@@ -82,6 +120,14 @@ public with sharing class AmplemarketFieldMapper {
         if (v == null) return true;
         if (v instanceof String) return String.isBlank((String) v);
         return false;
+    }
+
+    @TestVisible
+    private static String stringifyValue(Object v) {
+        if (v == null) return null;
+        String s = String.valueOf(v);
+        if (s != null && s.length() > 2048) s = s.substring(0, 2048);
+        return s;
     }
 
     /**

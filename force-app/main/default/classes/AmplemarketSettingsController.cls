@@ -7,18 +7,6 @@ public with sharing class AmplemarketSettingsController {
         @AuraEnabled public List<Map<String, String>> sobjectFields;
     }
 
-    public class Mapping {
-        @AuraEnabled public Id id;
-        @AuraEnabled public String objectApiName;
-        @AuraEnabled public String mappingType;
-        @AuraEnabled public String amplemarketField;
-        @AuraEnabled public String salesforceField;
-        @AuraEnabled public Boolean revealEmail;
-        @AuraEnabled public Boolean revealPhone;
-        @AuraEnabled public String updateBehavior;
-        @AuraEnabled public Boolean isActive;
-    }
-
     @AuraEnabled(cacheable=true)
     public static List<ObjectCatalog> getCatalog() {
         List<ObjectCatalog> catalogs = new List<ObjectCatalog>();
@@ -64,8 +52,8 @@ public with sharing class AmplemarketSettingsController {
     }
 
     @AuraEnabled(cacheable=false)
-    public static List<Mapping> getMappings() {
-        List<Mapping> out = new List<Mapping>();
+    public static List<AmplemarketMapping> getMappings() {
+        List<AmplemarketMapping> out = new List<AmplemarketMapping>();
         for (Amplemarket_Mapping__c m : [
             SELECT Id, Object_API_Name__c, Mapping_Type__c,
                    Amplemarket_Field__c, Salesforce_Field__c,
@@ -74,7 +62,7 @@ public with sharing class AmplemarketSettingsController {
             FROM Amplemarket_Mapping__c
             ORDER BY Object_API_Name__c, Mapping_Type__c, Amplemarket_Field__c
         ]) {
-            Mapping mp = new Mapping();
+            AmplemarketMapping mp = new AmplemarketMapping();
             mp.id = m.Id;
             mp.objectApiName = m.Object_API_Name__c;
             mp.mappingType = m.Mapping_Type__c;
@@ -89,17 +77,23 @@ public with sharing class AmplemarketSettingsController {
         return out;
     }
 
-    /**
-     * Replaces all stored mappings with the supplied list. Inserts new rows,
-     * updates existing rows by Id, and deletes any pre-existing rows the caller
-     * did not include.
-     */
     @AuraEnabled
-    public static void saveMappings(List<Mapping> mappings) {
+    public static AmplemarketSaveResult saveMappings(String mappingsJson) {
         if (!Schema.SObjectType.Amplemarket_Mapping__c.isUpdateable()) {
             throw new AuraHandledException('You do not have edit access to Amplemarket Mappings.');
         }
-        if (mappings == null) mappings = new List<Mapping>();
+        List<AmplemarketMapping> mappings;
+        if (String.isBlank(mappingsJson)) {
+            mappings = new List<AmplemarketMapping>();
+        } else {
+            try {
+                mappings = (List<AmplemarketMapping>) JSON.deserialize(
+                    mappingsJson, List<AmplemarketMapping>.class
+                );
+            } catch (Exception e) {
+                throw new AuraHandledException('Could not parse mappings JSON: ' + e.getMessage());
+            }
+        }
 
         Map<Id, Amplemarket_Mapping__c> existing = new Map<Id, Amplemarket_Mapping__c>(
             [SELECT Id FROM Amplemarket_Mapping__c]
@@ -107,8 +101,26 @@ public with sharing class AmplemarketSettingsController {
 
         List<Amplemarket_Mapping__c> toUpsert = new List<Amplemarket_Mapping__c>();
         Set<Id> keepIds = new Set<Id>();
+        AmplemarketSaveResult result = new AmplemarketSaveResult();
+        result.skippedReasons = new List<String>();
 
-        for (Mapping m : mappings) {
+        for (Integer i = 0; i < mappings.size(); i++) {
+            AmplemarketMapping m = mappings[i];
+            List<String> missing = new List<String>();
+            if (String.isBlank(m.objectApiName)) missing.add('objectApiName');
+            if (String.isBlank(m.mappingType)) missing.add('mappingType');
+            if (String.isBlank(m.amplemarketField)) missing.add('amplemarketField');
+            if (String.isBlank(m.salesforceField)) missing.add('salesforceField');
+
+            if (!missing.isEmpty()) {
+                result.skippedReasons.add('row[' + i + '] '
+                    + (m.objectApiName == null ? '?' : m.objectApiName) + '/'
+                    + (m.mappingType == null ? '?' : m.mappingType) + '/'
+                    + (m.amplemarketField == null ? '?' : m.amplemarketField) + '/'
+                    + (m.salesforceField == null ? '?' : m.salesforceField)
+                    + ' missing: ' + String.join(missing, ','));
+                continue;
+            }
             Amplemarket_Mapping__c row = new Amplemarket_Mapping__c(
                 Object_API_Name__c = m.objectApiName,
                 Mapping_Type__c = m.mappingType,
@@ -139,5 +151,7 @@ public with sharing class AmplemarketSettingsController {
             Database.rollback(sp);
             throw new AuraHandledException('Could not save mappings: ' + de.getDmlMessage(0));
         }
+        result.saved = toUpsert.size();
+        return result;
     }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Enrichment_Log__c</fullName>
+    <label>Enrichment Log</label>
+    <referenceTo>Enrichment_Log__c</referenceTo>
+    <relationshipLabel>Field Outcomes</relationshipLabel>
+    <relationshipName>Field_Outcomes</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

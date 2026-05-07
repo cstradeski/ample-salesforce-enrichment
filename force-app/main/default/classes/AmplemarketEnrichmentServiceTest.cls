@@ -46,6 +46,17 @@ private class AmplemarketEnrichmentServiceTest {
         System.assertEquals('VP', updated.Title);
         System.assertEquals('SaaS', updated.Industry);
         System.assertEquals(1, [SELECT COUNT() FROM Enrichment_Log__c WHERE Status__c = 'Success']);
+
+        List<Enrichment_Log_Field__c> outcomes = [
+            SELECT Salesforce_Field__c, Status__c, New_Value__c
+            FROM Enrichment_Log_Field__c
+            WHERE Enrichment_Log__c = :res.logId
+            ORDER BY Salesforce_Field__c
+        ];
+        System.assertEquals(2, outcomes.size(), 'Expect one child row per output mapping');
+        for (Enrichment_Log_Field__c o : outcomes) {
+            System.assertEquals('Applied', o.Status__c, o.Salesforce_Field__c + ' should be applied');
+        }
     }
 
     @IsTest
@@ -88,6 +99,52 @@ private class AmplemarketEnrichmentServiceTest {
 
         System.assert(!res.success);
         System.assertEquals('Source record has no values for any configured match input.', res.message);
+    }
+
+    private class CapturingMock implements HttpCalloutMock {
+        public String capturedEndpoint;
+        public HttpResponse respond(HttpRequest req) {
+            capturedEndpoint = req.getEndpoint();
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(200);
+            res.setBody('{"id":"abc","title":"VP"}');
+            return res;
+        }
+    }
+
+    @IsTest
+    static void doesNotSendRevealEmailWhenEmailIsMatchInput() {
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Email = 'jane@acme.com');
+        insert l;
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+                Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email',
+                Reveal_Email__c = true, Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
+        };
+        CapturingMock mock = new CapturingMock();
+        Test.setMock(HttpCalloutMock.class, mock);
+
+        Test.startTest();
+        AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
+        Test.stopTest();
+
+        System.assert(mock.capturedEndpoint.contains('email='), 'email match input should be sent');
+        System.assert(!mock.capturedEndpoint.contains('reveal_email'),
+            'reveal_email must NOT be sent when email is already a match input. Got: ' + mock.capturedEndpoint);
+    }
+
+    @IsTest
+    static void normalizeMatchValueStripsProtocolAndWww() {
+        System.assertEquals('acme.com', AmplemarketEnrichmentService.normalizeMatchValue('domain', 'https://www.acme.com/about'));
+        System.assertEquals('acme.com', AmplemarketEnrichmentService.normalizeMatchValue('domain', 'http://acme.com'));
+        System.assertEquals('acme.com', AmplemarketEnrichmentService.normalizeMatchValue('domain', 'www.Acme.com'));
+        System.assertEquals('acme.com', AmplemarketEnrichmentService.normalizeMatchValue('company_domain', 'acme.com'));
+        // Non-domain keys are passed through (just trimmed)
+        System.assertEquals('jane@acme.com', AmplemarketEnrichmentService.normalizeMatchValue('email', '  jane@acme.com '));
     }
 
     @IsTest

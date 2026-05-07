@@ -43,6 +43,17 @@ sf org assign permset --name Amplemarket_Admin --target-org <yourOrg>
 sf org assign permset --name Amplemarket_User --target-org <yourOrg>
 ```
 
+## 2c. Surface the Field Outcomes related list on Enrichment Log
+
+The metadata creates `Enrichment_Log_Field__c` with a master-detail to `Enrichment_Log__c`, which gives you a *Field Outcomes* related list on every Enrichment Log record. To make it visible:
+
+1. Setup → Object Manager → **Enrichment Log** → Page Layouts → edit the layout used by your Enrichment Log records
+2. From the palette → **Related Lists**, drag *Field Outcomes* into the related-list section
+3. Click the wrench icon on the related list and add useful columns: *Salesforce Field*, *Amplemarket Field*, *Status*, *Old Value*, *New Value*
+4. Save
+
+After enrichment runs you'll see one child row per output mapping with the status (`Applied`, `Skipped - Already Populated`, `Skipped - No Value`, or `Error`).
+
 ## 3. Add the Quick Action to each object's record page
 
 Quick Actions are deployed but not pinned to record-page layouts automatically.

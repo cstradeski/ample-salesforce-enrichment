@@ -19,21 +19,20 @@ private class AmplemarketSettingsControllerTest {
 
     @IsTest
     static void getMappingsReturnsEmptyByDefault() {
-        List<AmplemarketSettingsController.Mapping> rows = AmplemarketSettingsController.getMappings();
+        List<AmplemarketMapping> rows = AmplemarketSettingsController.getMappings();
         System.assertEquals(0, rows.size());
     }
 
     @IsTest
     static void saveMappingsInsertsThenUpdatesThenDeletes() {
-        // Insert two rows
-        AmplemarketSettingsController.Mapping m1 = new AmplemarketSettingsController.Mapping();
+        AmplemarketMapping m1 = new AmplemarketMapping();
         m1.objectApiName = 'Lead';
         m1.mappingType = 'Match Input';
         m1.amplemarketField = 'email';
         m1.salesforceField = 'Email';
         m1.isActive = true;
 
-        AmplemarketSettingsController.Mapping m2 = new AmplemarketSettingsController.Mapping();
+        AmplemarketMapping m2 = new AmplemarketMapping();
         m2.objectApiName = 'Lead';
         m2.mappingType = 'Output Field';
         m2.amplemarketField = 'title';
@@ -41,20 +40,51 @@ private class AmplemarketSettingsControllerTest {
         m2.isActive = true;
 
         Test.startTest();
-        AmplemarketSettingsController.saveMappings(new List<AmplemarketSettingsController.Mapping>{ m1, m2 });
+        AmplemarketSaveResult res = AmplemarketSettingsController.saveMappings(JSON.serialize(new List<AmplemarketMapping>{ m1, m2 }));
         Test.stopTest();
 
-        List<AmplemarketSettingsController.Mapping> stored = AmplemarketSettingsController.getMappings();
+        System.assertEquals(2, res.saved);
+        System.assertEquals(0, res.skippedReasons.size());
+
+        List<AmplemarketMapping> stored = AmplemarketSettingsController.getMappings();
         System.assertEquals(2, stored.size());
 
-        // Update one (change SF field), drop the other
-        AmplemarketSettingsController.Mapping keep = stored[0];
+        AmplemarketMapping keep = stored[0];
         keep.salesforceField = 'FirstName';
-        AmplemarketSettingsController.saveMappings(new List<AmplemarketSettingsController.Mapping>{ keep });
+        AmplemarketSaveResult res2 = AmplemarketSettingsController.saveMappings(JSON.serialize(new List<AmplemarketMapping>{ keep }));
+        System.assertEquals(1, res2.saved);
 
-        List<AmplemarketSettingsController.Mapping> after = AmplemarketSettingsController.getMappings();
+        List<AmplemarketMapping> after = AmplemarketSettingsController.getMappings();
         System.assertEquals(1, after.size());
         System.assertEquals('FirstName', after[0].salesforceField);
+    }
+
+    @IsTest
+    static void saveMappingsSkipsRowsWithBlankRequiredFields() {
+        AmplemarketMapping good = new AmplemarketMapping();
+        good.objectApiName = 'Lead';
+        good.mappingType = 'Output Field';
+        good.amplemarketField = 'title';
+        good.salesforceField = 'Title';
+        good.isActive = true;
+
+        AmplemarketMapping bad = new AmplemarketMapping();
+        bad.objectApiName = 'Lead';
+        bad.mappingType = 'Output Field';
+        bad.amplemarketField = '';
+        bad.salesforceField = 'Title';
+        bad.isActive = true;
+
+        Test.startTest();
+        AmplemarketSaveResult res = AmplemarketSettingsController.saveMappings(
+            JSON.serialize(new List<AmplemarketMapping>{ good, bad })
+        );
+        Test.stopTest();
+
+        System.assertEquals(1, res.saved);
+        System.assertEquals(1, res.skippedReasons.size());
+        System.assert(res.skippedReasons[0].contains('amplemarketField'));
+        System.assertEquals(1, [SELECT COUNT() FROM Amplemarket_Mapping__c]);
     }
 
     @IsTest
@@ -64,7 +94,7 @@ private class AmplemarketSettingsControllerTest {
             Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true);
 
         Test.startTest();
-        AmplemarketSettingsController.saveMappings(null);
+        AmplemarketSettingsController.saveMappings('[]');
         Test.stopTest();
 
         System.assertEquals(0, [SELECT COUNT() FROM Amplemarket_Mapping__c]);
