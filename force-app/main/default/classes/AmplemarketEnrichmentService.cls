@@ -7,6 +7,7 @@ public with sharing class AmplemarketEnrichmentService {
         public String message;
         public Id logId;
         public Integer fieldsApplied = 0;
+        public String appliedFieldsHtml;
     }
 
     /**
@@ -30,6 +31,7 @@ public with sharing class AmplemarketEnrichmentService {
 
         if (matchInputs == null || matchInputs.isEmpty()) {
             result.message = 'No active match-input mappings configured for ' + objApi;
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, null, 'Error', null, null, result.message, null, started);
             return result;
         }
@@ -39,6 +41,7 @@ public with sharing class AmplemarketEnrichmentService {
             record = querySourceRecord(objApi, recordId, matchInputs, outputs);
         } catch (Exception e) {
             result.message = 'Could not load source record: ' + e.getMessage();
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, null, 'Error', null, null, result.message, null, started);
             return result;
         }
@@ -62,6 +65,7 @@ public with sharing class AmplemarketEnrichmentService {
 
         if (queryParams.isEmpty()) {
             result.message = 'Source record has no values for any configured match input.';
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, null, 'Error', null, null, result.message, null, started);
             return result;
         }
@@ -79,6 +83,7 @@ public with sharing class AmplemarketEnrichmentService {
             endpoint = '/companies/find';
         } else {
             result.message = 'Object not supported: ' + objApi;
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, null, 'Error', null, null, result.message, null, started);
             return result;
         }
@@ -88,6 +93,7 @@ public with sharing class AmplemarketEnrichmentService {
             http = new AmplemarketHttpClient().get(endpoint, queryParams);
         } catch (AmplemarketHttpClient.CalloutException ce) {
             result.message = ce.getMessage();
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, endpoint, 'Error',
                 JSON.serialize(queryParams), null, result.message, null, started);
             return result;
@@ -95,6 +101,7 @@ public with sharing class AmplemarketEnrichmentService {
 
         if (!http.isSuccess()) {
             result.message = 'API returned ' + http.statusCode + ': ' + http.status;
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, endpoint, 'Error',
                 JSON.serialize(queryParams), http.body, result.message, null, started);
             return result;
@@ -105,6 +112,7 @@ public with sharing class AmplemarketEnrichmentService {
             parsed = (Map<String, Object>) JSON.deserializeUntyped(http.body);
         } catch (Exception e) {
             result.message = 'Could not parse Amplemarket response: ' + e.getMessage();
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, endpoint, 'Error',
                 JSON.serialize(queryParams), http.body, result.message, null, started);
             return result;
@@ -123,6 +131,7 @@ public with sharing class AmplemarketEnrichmentService {
             }
         } catch (DmlException de) {
             result.message = 'DML failed when writing enrichment: ' + de.getMessage();
+            result.appliedFieldsHtml = errorHtml(result.message);
             result.logId = writeLog(recordId, objApi, endpoint, 'Error',
                 JSON.serialize(queryParams), http.body, result.message, null, started);
             return result;
@@ -136,10 +145,76 @@ public with sharing class AmplemarketEnrichmentService {
             (mapRes.warnings.isEmpty() ? '' : '; warnings: ' + String.join(mapRes.warnings, '; '));
         result.success = mapRes.fieldsApplied > 0;
         result.message = msg;
+        result.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes);
         result.logId = writeLog(recordId, objApi, endpoint, status,
             JSON.serialize(queryParams), http.body, msg, credits, started);
         writeFieldOutcomes(result.logId, mapRes.outcomes);
         return result;
+    }
+
+    @TestVisible
+    private static String buildAppliedFieldsHtml(String objectApiName, AmplemarketFieldMapper.FieldMapResult mapRes) {
+        if (mapRes == null || mapRes.outcomes == null) return null;
+
+        List<AmplemarketFieldMapper.FieldOutcome> applied = new List<AmplemarketFieldMapper.FieldOutcome>();
+        Integer skippedPopulated = 0;
+        Integer skippedNoValue = 0;
+        for (AmplemarketFieldMapper.FieldOutcome o : mapRes.outcomes) {
+            if (o.status == AmplemarketFieldMapper.STATUS_APPLIED) {
+                applied.add(o);
+            } else if (o.status == AmplemarketFieldMapper.STATUS_SKIPPED_POPULATED) {
+                skippedPopulated++;
+            } else if (o.status == AmplemarketFieldMapper.STATUS_SKIPPED_NO_VALUE) {
+                skippedNoValue++;
+            }
+        }
+
+        String html;
+        if (applied.isEmpty()) {
+            html = '<p>No fields were updated. Either Amplemarket returned no new values, '
+                + 'or all mapped fields are already populated on this ' + escapeHtml(objectApiName) + '.</p>';
+        } else {
+            html = '<p><strong>Successfully enriched ' + applied.size() + ' field'
+                + (applied.size() == 1 ? '' : 's')
+                + ' on this ' + escapeHtml(objectApiName) + ':</strong></p><ul>';
+            for (AmplemarketFieldMapper.FieldOutcome o : applied) {
+                String label = String.isNotBlank(o.salesforceLabel) ? o.salesforceLabel : o.salesforceField;
+                String val = o.newValue == null ? '' : o.newValue;
+                if (val.length() > 250) val = val.substring(0, 250) + '…';
+                html += '<li><strong>' + escapeHtml(label) + ':</strong> '
+                    + (String.isBlank(val) ? '<em>(blank)</em>' : escapeHtml(val))
+                    + '</li>';
+            }
+            html += '</ul>';
+        }
+
+        if (skippedPopulated > 0) {
+            html += '<p><em>' + skippedPopulated + ' field'
+                + (skippedPopulated == 1 ? ' was' : 's were')
+                + ' left unchanged because the existing value is already populated.</em></p>';
+        }
+        if (skippedNoValue > 0 && !applied.isEmpty()) {
+            html += '<p><em>' + skippedNoValue + ' mapped field'
+                + (skippedNoValue == 1 ? ' had' : 's had')
+                + ' no value returned by Amplemarket.</em></p>';
+        }
+        if (mapRes.warnings != null && !mapRes.warnings.isEmpty()) {
+            html += '<p><strong>Warnings:</strong></p><ul>';
+            for (String w : mapRes.warnings) {
+                html += '<li>' + escapeHtml(w) + '</li>';
+            }
+            html += '</ul>';
+        }
+        return html;
+    }
+
+    @TestVisible
+    private static String errorHtml(String message) {
+        return '<p>Enrichment could not be completed: ' + escapeHtml(message) + '</p>';
+    }
+
+    private static String escapeHtml(String s) {
+        return s == null ? '' : s.escapeHtml4();
     }
 
     @TestVisible

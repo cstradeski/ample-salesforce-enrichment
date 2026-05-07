@@ -7,6 +7,7 @@ public with sharing class AmplemarketFieldMapper {
 
     public class FieldOutcome {
         public String salesforceField;
+        public String salesforceLabel;
         public String amplemarketField;
         public String oldValue;
         public String newValue;
@@ -65,6 +66,7 @@ public with sharing class AmplemarketFieldMapper {
                 continue;
             }
             Schema.DescribeFieldResult dfr = token.getDescribe();
+            outcome.salesforceLabel = dfr.getLabel();
             if (!dfr.isUpdateable()) {
                 outcome.status = STATUS_ERROR;
                 outcome.errorDetail = 'Field not updateable: ' + sfField;

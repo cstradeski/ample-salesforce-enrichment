@@ -168,4 +168,38 @@ private class AmplemarketEnrichmentServiceTest {
         System.assert(res.success, res.message);
         System.assertEquals(250, [SELECT NumberOfEmployees FROM Account WHERE Id = :a.Id].NumberOfEmployees);
     }
+
+    @IsTest
+    static void successResultIncludesAppliedFieldsHtml() {
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
+        insert l;
+        seedLeadMappings();
+        Test.setMock(HttpCalloutMock.class, new PersonMock(200,
+            '{"id":"abc","title":"VP of Engineering","company":{"industry":"SaaS"},"email":"jane@acme.com"}'));
+
+        Test.startTest();
+        AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
+        Test.stopTest();
+
+        System.assert(res.success, res.message);
+        System.assertNotEquals(null, res.appliedFieldsHtml);
+        System.assert(res.appliedFieldsHtml.contains('Successfully enriched'),
+            'Expected success heading: ' + res.appliedFieldsHtml);
+        // Field UI labels (not API names) should appear
+        System.assert(res.appliedFieldsHtml.contains('Title:'), res.appliedFieldsHtml);
+        System.assert(res.appliedFieldsHtml.contains('Industry:'), res.appliedFieldsHtml);
+        // New values should appear
+        System.assert(res.appliedFieldsHtml.contains('VP of Engineering'), res.appliedFieldsHtml);
+        System.assert(res.appliedFieldsHtml.contains('SaaS'), res.appliedFieldsHtml);
+    }
+
+    @IsTest
+    static void errorResultProducesAppliedFieldsHtml() {
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
+        insert l;
+        // No mappings seeded -> "No active match-input mappings configured" branch
+        AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
+        System.assertNotEquals(null, res.appliedFieldsHtml);
+        System.assert(res.appliedFieldsHtml.contains('could not be completed'), res.appliedFieldsHtml);
+    }
 }

@@ -16,6 +16,8 @@ global with sharing class AmplemarketEnrichInvocable {
         global Id logId;
         @InvocableVariable(label='Fields Applied')
         global Integer fieldsApplied;
+        @InvocableVariable(label='Applied Fields HTML')
+        global String appliedFieldsHtml;
     }
 
     @InvocableMethod(
@@ -35,6 +37,7 @@ global with sharing class AmplemarketEnrichInvocable {
             resp.message = sr.message;
             resp.logId = sr.logId;
             resp.fieldsApplied = sr.fieldsApplied;
+            resp.appliedFieldsHtml = sr.appliedFieldsHtml;
             out.add(resp);
             return out;
         }
@@ -59,6 +62,7 @@ global with sharing class AmplemarketEnrichInvocable {
             resp.success = true;
             resp.message = 'Batch enrichment dispatched';
             resp.fieldsApplied = 0;
+            resp.appliedFieldsHtml = '<p>Batch enrichment has been dispatched. Field-level results will appear on each record\'s Enrichment Logs once processing completes.</p>';
             out.add(resp);
         }
         return out;

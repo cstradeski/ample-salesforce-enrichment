@@ -3,7 +3,7 @@
     <brand>
         <headerColor>#0070D2</headerColor>
         <logo>Amplemarket_Logo</logo>
-        <logoVersion>1</logoVersion>
+        <logoVersion>2</logoVersion>
         <shouldOverrideOrgTheme>false</shouldOverrideOrgTheme>
     </brand>
     <description>Configure and audit Amplemarket data enrichment.</description>

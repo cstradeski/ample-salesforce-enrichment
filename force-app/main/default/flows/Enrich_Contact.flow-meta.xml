@@ -66,7 +66,7 @@
         <allowPause>false</allowPause>
         <fields>
             <name>ResultMessage</name>
-            <fieldText>&lt;p&gt;{!Call_Enrichment.message}&lt;/p&gt;</fieldText>
+            <fieldText>{!Call_Enrichment.appliedFieldsHtml}</fieldText>
             <fieldType>DisplayText</fieldType>
         </fields>
         <showFooter>true</showFooter>
