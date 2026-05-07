@@ -36,6 +36,10 @@
         <enabled>true</enabled>
         <name>Manage_Amplemarket_Settings</name>
     </customPermissions>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Run_Amplemarket_Enrichment</name>
+    </customPermissions>
 
     <objectPermissions>
         <object>Enrichment_Log__c</object>

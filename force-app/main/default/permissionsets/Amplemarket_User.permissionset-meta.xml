@@ -18,6 +18,11 @@
         <enabled>true</enabled>
     </classAccesses>
 
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Run_Amplemarket_Enrichment</name>
+    </customPermissions>
+
     <objectPermissions>
         <object>Enrichment_Log__c</object>
         <allowCreate>true</allowCreate>

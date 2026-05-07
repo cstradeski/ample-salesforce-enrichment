@@ -35,8 +35,8 @@ The Named Credential will now inject the `Authorization: Bearer …` header auto
 
 | Permission set | Who gets it | Grants |
 | --- | --- | --- |
-| **Amplemarket Admin** | The 1–2 people who manage the configuration | Settings tab + LWC, custom-permission `Manage Amplemarket Settings`, full read/write on `Enrichment_Log__c`, access to the External Credential principal |
-| **Amplemarket User** | Anyone who should see the *Enrich with Amplemarket* action on a record | Apex class access to the invocable + service, read/create on `Enrichment_Log__c`, access to the External Credential principal |
+| **Amplemarket Admin** | The 1–2 people who manage the configuration | Settings tab + LWC, custom permissions `Manage Amplemarket Settings` and `Run Amplemarket Enrichment`, full read/write on `Enrichment_Log__c`, access to the External Credential principal |
+| **Amplemarket User** | Anyone who should see the *Enrich with Amplemarket* action on a record | Apex class access to the invocable + service, custom permission `Run Amplemarket Enrichment` (drives action visibility — see step 3), read/create on `Enrichment_Log__c`, access to the External Credential principal |
 
 ```bash
 sf org assign permset --name Amplemarket_Admin --target-org <yourOrg>
@@ -54,16 +54,25 @@ The metadata creates `Enrichment_Log_Field__c` with a master-detail to `Enrichme
 
 After enrichment runs you'll see one child row per output mapping with the status (`Applied`, `Skipped - Already Populated`, `Skipped - No Value`, or `Error`).
 
-## 3. Add the Quick Action to each object's record page
+## 3. Add the Quick Action to each object's record page (with permission-gated visibility)
 
-Quick Actions are deployed but not pinned to record-page layouts automatically.
+Quick Actions are deployed but not pinned to record-page layouts automatically. To make the **Enrich with Amplemarket** button visible *only* to users granted the `Run Amplemarket Enrichment` custom permission, configure it via **Dynamic Actions** on the Lightning record page rather than via page layout.
 
 For **Lead**, **Contact**, and **Account**:
 
-1. Setup → Object Manager → choose the object → **Page Layouts**
-2. Edit the layout used by your record pages
-3. From the palette → **Mobile & Lightning Actions**, drag **Enrich with Amplemarket** into the *Salesforce Mobile and Lightning Experience Actions* section
-4. Save
+1. Open a record of that object → gear icon → **Edit Page** (Lightning App Builder)
+2. Select the **Highlights Panel** component → in the right-hand panel click **Upgrade Now** (or **Enable Dynamic Actions** / **Add Action**) to switch from page-layout-driven actions to Dynamic Actions
+3. Click **Add Action** → choose **Enrich with Amplemarket**
+4. With that action selected, click **Add Filter** and set:
+   - Field: `$Permission`
+   - Permission: `Run Amplemarket Enrichment`
+   - Operator: `Equal`
+   - Value: `True`
+5. Optional: reorder actions, then **Save** and **Activate** the page
+
+Users without the `Run Amplemarket Enrichment` custom permission will not see the button at all. Users with it (granted by either the **Amplemarket Admin** or **Amplemarket User** perm set) will see it.
+
+> If your org hasn't enabled Dynamic Actions for standard objects yet, an alternative is to drag the action into the **Mobile & Lightning Actions** section of the page layout — but in that mode the button is visible to everyone, and the custom permission has no effect on visibility.
 
 ## 4. Configure field mappings
 
