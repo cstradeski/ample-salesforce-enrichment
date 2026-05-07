@@ -8,6 +8,126 @@ public with sharing class AmplemarketEnrichmentService {
         public Id logId;
         public Integer fieldsApplied = 0;
         public String appliedFieldsHtml;
+        public Decimal creditsUsed = 0;
+    }
+
+    public class CreditPreview {
+        public Boolean hasMappings = false;
+        public Boolean isPerson = false;
+        public Boolean revealEmail = false;
+        public Boolean revealPhone = false;
+        public Decimal bestCase = 0;     // 0 — no match found
+        public Decimal matchOnlyCase = 0; // 0.5 if a match is found, no reveals
+        public Decimal worstCase = 0;    // 0.5 + revealEmail (if applied) + revealPhone (if applied)
+        public String summaryHtml;
+    }
+
+    /**
+     * Pre-flight credit estimate. Reads mapping config and returns best/worst case
+     * costs without making the callout. Surfaced via AmplemarketCreditPreview to
+     * the screen flows so the user can confirm before spending credits.
+     */
+    public static CreditPreview previewCredits(Id recordId, String objectApiName) {
+        CreditPreview cp = new CreditPreview();
+        String objApi = String.isNotBlank(objectApiName)
+            ? objectApiName
+            : (recordId == null ? null : recordId.getSObjectType().getDescribe().getName());
+
+        if (String.isBlank(objApi)) {
+            cp.summaryHtml = '<p>Unable to determine object type for credit preview.</p>';
+            return cp;
+        }
+
+        Map<String, List<Amplemarket_Mapping__c>> grouped = loadMappings(objApi);
+        List<Amplemarket_Mapping__c> matchInputs = grouped.get(AmplemarketDTO.MAPPING_MATCH_INPUT);
+
+        if (matchInputs == null || matchInputs.isEmpty()) {
+            cp.summaryHtml = '<p><strong>No active match-input mappings are configured for ' + escapeHtml(objApi) + '.</strong></p>'
+                + '<p>The enrichment will not consume credits, but it will return an error. '
+                + 'Configure match inputs on the Amplemarket Settings tab before running enrichment.</p>';
+            return cp;
+        }
+        cp.hasMappings = true;
+        cp.isPerson = AmplemarketDTO.isPersonObject(objApi);
+
+        // Mirror the service iteration. The service builds the same `revealEmail` /
+        // `revealPhone` booleans by visiting only active rows with a non-blank
+        // Amplemarket_Field__c.
+        Set<String> emailMatchSfFields = new Set<String>();
+        for (Amplemarket_Mapping__c m : matchInputs) {
+            if (m.Is_Active__c != true) continue;
+            if (String.isBlank(m.Amplemarket_Field__c)) continue;
+            if (m.Amplemarket_Field__c == 'email' && String.isNotBlank(m.Salesforce_Field__c)) {
+                emailMatchSfFields.add(m.Salesforce_Field__c);
+            }
+            if (m.Reveal_Email__c == true) cp.revealEmail = true;
+            if (m.Reveal_Phone__c == true) cp.revealPhone = true;
+        }
+
+        // The service only suppresses reveal_email when 'email' actually ends up in
+        // queryParams, which requires the source record to have a non-blank value
+        // on the email-mapped Salesforce field. Query the source to mirror that.
+        Boolean emailWillBeInQueryParams = false;
+        if (cp.revealEmail && !emailMatchSfFields.isEmpty() && recordId != null) {
+            try {
+                String soql = 'SELECT ' + String.join(new List<String>(emailMatchSfFields), ', ')
+                    + ' FROM ' + objApi + ' WHERE Id = :recordId LIMIT 1';
+                List<SObject> rows = Database.query(soql);
+                if (!rows.isEmpty()) {
+                    SObject src = rows[0];
+                    for (String f : emailMatchSfFields) {
+                        Object v = src.get(f);
+                        if (v != null && String.isNotBlank(String.valueOf(v))) {
+                            emailWillBeInQueryParams = true;
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Worst-case is safer than best-case for credit warnings.
+                emailWillBeInQueryParams = false;
+            }
+        }
+
+        cp.matchOnlyCase = 0.5;
+        cp.worstCase = 0.5;
+        if (cp.isPerson) {
+            // Reveal_email is sent (and billed) unless 'email' is already in queryParams.
+            if (cp.revealEmail && !emailWillBeInQueryParams) cp.worstCase += 1;
+            if (cp.revealPhone) cp.worstCase += 1;
+        }
+
+        cp.summaryHtml = buildCreditPreviewHtml(cp, objApi);
+        return cp;
+    }
+
+    private static String buildCreditPreviewHtml(CreditPreview cp, String objApi) {
+        String objLabel = escapeHtml(objApi);
+        String html = '<p>Running this enrichment will call the Amplemarket API. Credits are only charged on successful matches:</p>';
+        html += '<ul>';
+        html += '<li><strong>0 credits</strong> &mdash; if Amplemarket does not find a matching ' + objLabel + '</li>';
+
+        if (cp.matchOnlyCase == cp.worstCase) {
+            html += '<li><strong>' + formatCredits(cp.worstCase) + ' credit'
+                + (cp.worstCase == 1 ? '' : 's') + '</strong> &mdash; if a match is found</li>';
+        } else {
+            html += '<li><strong>' + formatCredits(cp.matchOnlyCase) + ' credits</strong> &mdash; best case (match found, no extra data revealed)</li>';
+            List<String> components = new List<String>{ 'match' };
+            if (cp.isPerson && cp.revealEmail) components.add('revealed email');
+            if (cp.isPerson && cp.revealPhone) components.add('revealed phone');
+            html += '<li><strong>up to ' + formatCredits(cp.worstCase) + ' credits</strong> &mdash; worst case ('
+                + String.join(components, ' + ') + ')</li>';
+        }
+        html += '</ul>';
+        html += '<p>Click <strong>Next</strong> to run enrichment, or <strong>Cancel</strong> to abort.</p>';
+        return html;
+    }
+
+    private static String formatCredits(Decimal d) {
+        // 0.5 → "0.5", 2 → "2", 2.5 → "2.5"
+        if (d == null) return '0';
+        Decimal stripped = d.setScale(1);
+        return (stripped == stripped.round()) ? String.valueOf(stripped.intValue()) : String.valueOf(stripped);
     }
 
     /**
@@ -137,7 +257,9 @@ public with sharing class AmplemarketEnrichmentService {
             return result;
         }
 
-        Decimal credits = estimateCredits(parsed, revealEmail, revealPhone);
+        Decimal credits = estimateCredits(parsed,
+            queryParams.containsKey('reveal_email'),
+            queryParams.containsKey('reveal_phone_numbers'));
         String status = mapRes.warnings.isEmpty() && mapRes.fieldsApplied > 0
             ? 'Success'
             : (mapRes.fieldsApplied > 0 ? 'Partial' : 'Error');
@@ -145,7 +267,8 @@ public with sharing class AmplemarketEnrichmentService {
             (mapRes.warnings.isEmpty() ? '' : '; warnings: ' + String.join(mapRes.warnings, '; '));
         result.success = mapRes.fieldsApplied > 0;
         result.message = msg;
-        result.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes);
+        result.creditsUsed = credits;
+        result.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes, credits);
         result.logId = writeLog(recordId, objApi, endpoint, status,
             JSON.serialize(queryParams), http.body, msg, credits, started);
         writeFieldOutcomes(result.logId, mapRes.outcomes);
@@ -153,7 +276,7 @@ public with sharing class AmplemarketEnrichmentService {
     }
 
     @TestVisible
-    private static String buildAppliedFieldsHtml(String objectApiName, AmplemarketFieldMapper.FieldMapResult mapRes) {
+    private static String buildAppliedFieldsHtml(String objectApiName, AmplemarketFieldMapper.FieldMapResult mapRes, Decimal creditsUsed) {
         if (mapRes == null || mapRes.outcomes == null) return null;
 
         List<AmplemarketFieldMapper.FieldOutcome> applied = new List<AmplemarketFieldMapper.FieldOutcome>();
@@ -204,6 +327,9 @@ public with sharing class AmplemarketEnrichmentService {
                 html += '<li>' + escapeHtml(w) + '</li>';
             }
             html += '</ul>';
+        }
+        if (creditsUsed != null) {
+            html += '<p><em>Amplemarket credits consumed: <strong>' + formatCredits(creditsUsed) + '</strong></em></p>';
         }
         return html;
     }
@@ -290,11 +416,17 @@ public with sharing class AmplemarketEnrichmentService {
         return rows[0];
     }
 
-    private static Decimal estimateCredits(Map<String, Object> parsed, Boolean revealEmail, Boolean revealPhone) {
+    /**
+     * Estimate credits charged based on what was actually sent and what came back.
+     * Use the *sent* booleans (queryParams.containsKey('reveal_email') etc.) — not the
+     * user-config booleans — because the service may suppress reveal_email when email
+     * is already a match input, in which case Amplemarket doesn't bill for it.
+     */
+    private static Decimal estimateCredits(Map<String, Object> parsed, Boolean sentRevealEmail, Boolean sentRevealPhone) {
         Decimal total = 0;
         if (parsed != null && parsed.get('id') != null) total += 0.5;
-        if (revealEmail && parsed != null && parsed.get('email') != null) total += 1;
-        if (revealPhone && parsed != null) {
+        if (sentRevealEmail && parsed != null && parsed.get('email') != null) total += 1;
+        if (sentRevealPhone && parsed != null) {
             Object pn = parsed.get('phone_numbers');
             if (pn instanceof List<Object> && !((List<Object>) pn).isEmpty()) total += 1;
         }

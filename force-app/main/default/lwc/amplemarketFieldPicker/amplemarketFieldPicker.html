@@ -18,9 +18,21 @@
                             oninput={handleInput}
                             onkeydown={handleKeydown}
                             onblur={handleBlur} />
-                        <span class="slds-icon_container slds-icon-utility-down slds-input__icon slds-input__icon_right">
-                            <lightning-icon icon-name="utility:down" size="x-small" alternative-text="Open"></lightning-icon>
-                        </span>
+                        <template if:true={hasValue}>
+                            <button
+                                type="button"
+                                class="slds-button slds-button_icon slds-input__icon slds-input__icon_right"
+                                title="Clear"
+                                onmousedown={handleClearMouseDown}>
+                                <lightning-icon icon-name="utility:close" size="x-small" alternative-text="Clear"></lightning-icon>
+                                <span class="slds-assistive-text">Clear</span>
+                            </button>
+                        </template>
+                        <template if:false={hasValue}>
+                            <span class="slds-icon_container slds-icon-utility-down slds-input__icon slds-input__icon_right">
+                                <lightning-icon icon-name="utility:down" size="x-small" alternative-text="Open"></lightning-icon>
+                            </span>
+                        </template>
                     </div>
                     <template if:true={isOpen}>
                         <div class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10" role="listbox">

@@ -191,6 +191,12 @@ private class AmplemarketEnrichmentServiceTest {
         // New values should appear
         System.assert(res.appliedFieldsHtml.contains('VP of Engineering'), res.appliedFieldsHtml);
         System.assert(res.appliedFieldsHtml.contains('SaaS'), res.appliedFieldsHtml);
+        // Credits consumed line should appear and creditsUsed should be populated.
+        // seedLeadMappings: email match + reveal_email=true. Service suppresses reveal_email
+        // when email is the match key, so credits = 0.5 (just the match).
+        System.assertEquals(0.5, res.creditsUsed);
+        System.assert(res.appliedFieldsHtml.contains('credits consumed'), res.appliedFieldsHtml);
+        System.assert(res.appliedFieldsHtml.contains('0.5'), res.appliedFieldsHtml);
     }
 
     @IsTest
@@ -201,5 +207,116 @@ private class AmplemarketEnrichmentServiceTest {
         AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
         System.assertNotEquals(null, res.appliedFieldsHtml);
         System.assert(res.appliedFieldsHtml.contains('could not be completed'), res.appliedFieldsHtml);
+    }
+
+    @IsTest
+    static void previewCreditsWithoutMappings() {
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
+        insert l;
+
+        AmplemarketEnrichmentService.CreditPreview cp =
+            AmplemarketEnrichmentService.previewCredits(l.Id, 'Lead');
+
+        System.assertEquals(false, cp.hasMappings);
+        System.assertEquals(0, cp.worstCase);
+        System.assert(cp.summaryHtml.contains('No active match-input mappings'), cp.summaryHtml);
+    }
+
+    @IsTest
+    static void previewCreditsLeadWithRevealEmailAndPhone() {
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
+        insert l;
+        // Match input is LinkedIn (not email), and reveal_email + reveal_phone enabled —
+        // worst case should be 0.5 + 1 + 1 = 2.5
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website',
+            Reveal_Email__c = true, Reveal_Phone__c = true, Is_Active__c = true);
+
+        AmplemarketEnrichmentService.CreditPreview cp =
+            AmplemarketEnrichmentService.previewCredits(l.Id, 'Lead');
+
+        System.assertEquals(true, cp.hasMappings);
+        System.assertEquals(true, cp.isPerson);
+        System.assertEquals(0.5, cp.matchOnlyCase);
+        System.assertEquals(2.5, cp.worstCase);
+        System.assert(cp.summaryHtml.contains('revealed email'), cp.summaryHtml);
+        System.assert(cp.summaryHtml.contains('revealed phone'), cp.summaryHtml);
+    }
+
+    @IsTest
+    static void previewCreditsLeadEmailMatchSuppressesRevealEmailCharge() {
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
+        insert l;
+        // email is the match input AND reveal_email is checked — service suppresses
+        // reveal_email when email is already a match key, so worst case is 0.5 (no reveal cost)
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email',
+            Reveal_Email__c = true, Reveal_Phone__c = false, Is_Active__c = true);
+
+        AmplemarketEnrichmentService.CreditPreview cp =
+            AmplemarketEnrichmentService.previewCredits(l.Id, 'Lead');
+
+        System.assertEquals(0.5, cp.worstCase, 'reveal_email should not contribute when email is a match key');
+    }
+
+    @IsTest
+    static void previewCreditsLeadEmailMatchWithBlankSourceStillBillsRevealEmail() {
+        // Email is configured as a match input, but the source Lead's Email is blank.
+        // The service iterates match inputs and sets revealEmail=true regardless of source,
+        // but only puts 'email' in queryParams when the source has a value. Here the source
+        // doesn't, so reveal_email IS sent and Amplemarket bills for it. Worst case = 1.5.
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme'); // Email left blank
+        insert l;
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'email', Salesforce_Field__c = 'Email',
+            Reveal_Email__c = true, Reveal_Phone__c = false, Is_Active__c = true);
+
+        AmplemarketEnrichmentService.CreditPreview cp =
+            AmplemarketEnrichmentService.previewCredits(l.Id, 'Lead');
+
+        System.assertEquals(1.5, cp.worstCase,
+            'Source email is blank, so reveal_email IS sent and worst case must include the +1 charge.');
+    }
+
+    @IsTest
+    static void revealEmailChargedWhenSentForReal() {
+        // Linkedin is the match key (so email is NOT a match input), reveal_email=true →
+        // service does send reveal_email=true to API, and Amplemarket bills for the reveal.
+        // Expected: 0.5 (match) + 1.0 (reveal email) = 1.5 credits.
+        Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Website = 'https://linkedin.com/in/jane');
+        insert l;
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website',
+            Reveal_Email__c = true, Is_Active__c = true);
+
+        Test.setMock(HttpCalloutMock.class, new PersonMock(200,
+            '{"id":"abc","email":"jane@acme.com"}'));
+
+        Test.startTest();
+        AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
+        Test.stopTest();
+
+        System.assertEquals(1.5, res.creditsUsed, 'reveal_email was sent and email returned, so should bill 1.5');
+    }
+
+    @IsTest
+    static void previewCreditsAccountIsHalfCredit() {
+        Account a = new Account(Name = 'Acme', Website = 'acme.com');
+        insert a;
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Account', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'domain', Salesforce_Field__c = 'Website', Is_Active__c = true);
+
+        AmplemarketEnrichmentService.CreditPreview cp =
+            AmplemarketEnrichmentService.previewCredits(a.Id, 'Account');
+
+        System.assertEquals(true, cp.hasMappings);
+        System.assertEquals(false, cp.isPerson);
+        System.assertEquals(0.5, cp.worstCase);
+        System.assertEquals(cp.matchOnlyCase, cp.worstCase, 'No reveals on companies — single tier');
     }
 }

@@ -66,6 +66,10 @@ export default class AmplemarketFieldPicker extends LightningElement {
         return this.isOpen && this.filteredOptions.length === 0;
     }
 
+    get hasValue() {
+        return !!this._value;
+    }
+
     get comboboxClass() {
         return this.isOpen
             ? 'slds-combobox slds-dropdown-trigger slds-dropdown-trigger_click slds-is-open'
@@ -143,5 +147,12 @@ export default class AmplemarketFieldPicker extends LightningElement {
                 detail: { value: v }
             })
         );
+    }
+
+    // mousedown (not click) so the input's blur handler doesn't fire first and re-sync the query.
+    handleClearMouseDown(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.selectValue('');
     }
 }

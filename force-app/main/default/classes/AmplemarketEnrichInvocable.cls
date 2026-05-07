@@ -18,6 +18,8 @@ global with sharing class AmplemarketEnrichInvocable {
         global Integer fieldsApplied;
         @InvocableVariable(label='Applied Fields HTML')
         global String appliedFieldsHtml;
+        @InvocableVariable(label='Credits Used')
+        global Decimal creditsUsed;
     }
 
     @InvocableMethod(
@@ -38,6 +40,7 @@ global with sharing class AmplemarketEnrichInvocable {
             resp.logId = sr.logId;
             resp.fieldsApplied = sr.fieldsApplied;
             resp.appliedFieldsHtml = sr.appliedFieldsHtml;
+            resp.creditsUsed = sr.creditsUsed;
             out.add(resp);
             return out;
         }

@@ -17,7 +17,7 @@
         <locationX>176</locationX>
         <locationY>0</locationY>
         <connector>
-            <targetReference>Call_Enrichment</targetReference>
+            <targetReference>Preview_Credits</targetReference>
         </connector>
     </start>
     <status>Active</status>
@@ -29,10 +29,38 @@
         <isOutput>false</isOutput>
     </variables>
     <actionCalls>
+        <name>Preview_Credits</name>
+        <label>Preview Credits</label>
+        <locationX>176</locationX>
+        <locationY>120</locationY>
+        <actionName>AmplemarketCreditPreview</actionName>
+        <actionType>apex</actionType>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>recordId</name>
+            <value>
+                <elementReference>recordId</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>objectApiName</name>
+            <value>
+                <stringValue>Contact</stringValue>
+            </value>
+        </inputParameters>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+        <connector>
+            <targetReference>Show_Credit_Warning</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+    </actionCalls>
+    <actionCalls>
         <name>Call_Enrichment</name>
         <label>Call Amplemarket Enrichment</label>
         <locationX>176</locationX>
-        <locationY>120</locationY>
+        <locationY>360</locationY>
         <actionName>AmplemarketEnrichInvocable</actionName>
         <actionType>apex</actionType>
         <flowTransactionModel>CurrentTransaction</flowTransactionModel>
@@ -57,10 +85,29 @@
         </faultConnector>
     </actionCalls>
     <screens>
+        <name>Show_Credit_Warning</name>
+        <label>Confirm Credit Usage</label>
+        <locationX>176</locationX>
+        <locationY>240</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>CreditWarningMessage</name>
+            <fieldText>{!Preview_Credits.summaryHtml}</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+        <connector>
+            <targetReference>Call_Enrichment</targetReference>
+        </connector>
+    </screens>
+    <screens>
         <name>Show_Result</name>
         <label>Enrichment Complete</label>
         <locationX>176</locationX>
-        <locationY>240</locationY>
+        <locationY>480</locationY>
         <allowBack>false</allowBack>
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
