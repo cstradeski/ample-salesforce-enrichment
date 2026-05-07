@@ -149,10 +149,12 @@ export default class AmplemarketFieldPicker extends LightningElement {
         );
     }
 
-    // mousedown (not click) so the input's blur handler doesn't fire first and re-sync the query.
-    handleClearMouseDown(event) {
-        event.preventDefault();
-        event.stopPropagation();
+    handleClear(event) {
+        // event may not be present; lightning-button-icon onclick supplies it.
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
         this.selectValue('');
     }
 }

@@ -4,63 +4,67 @@
             <label class="slds-form-element__label">{label}</label>
         </template>
         <div class="slds-form-element__control">
-            <div class="slds-combobox_container">
-                <div class={comboboxClass}>
-                    <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
-                        <input
-                            type="text"
-                            class="slds-input slds-combobox__input"
-                            role="combobox"
-                            autocomplete="off"
-                            value={query}
-                            placeholder={placeholder}
-                            onfocus={handleFocus}
-                            oninput={handleInput}
-                            onkeydown={handleKeydown}
-                            onblur={handleBlur} />
-                        <template if:true={hasValue}>
-                            <button
-                                type="button"
-                                class="slds-button slds-button_icon slds-input__icon slds-input__icon_right"
-                                title="Clear"
-                                onmousedown={handleClearMouseDown}>
-                                <lightning-icon icon-name="utility:close" size="x-small" alternative-text="Clear"></lightning-icon>
-                                <span class="slds-assistive-text">Clear</span>
-                            </button>
-                        </template>
-                        <template if:false={hasValue}>
-                            <span class="slds-icon_container slds-icon-utility-down slds-input__icon slds-input__icon_right">
-                                <lightning-icon icon-name="utility:down" size="x-small" alternative-text="Open"></lightning-icon>
-                            </span>
-                        </template>
-                    </div>
-                    <template if:true={isOpen}>
-                        <div class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10" role="listbox">
-                            <ul class="slds-listbox slds-listbox_vertical" role="presentation">
-                                <template for:each={filteredOptions} for:item="opt">
-                                    <li key={opt.value} role="presentation" class="slds-listbox__item">
-                                        <div
-                                            class={opt.cssClass}
-                                            role="option"
-                                            data-value={opt.value}
-                                            onmousedown={handleOptionMouseDown}>
-                                            <span class="slds-media__body">
-                                                <span class="slds-listbox__option-text slds-listbox__option-text_entity">{opt.label}</span>
-                                            </span>
-                                        </div>
-                                    </li>
-                                </template>
-                                <template if:true={hasNoMatches}>
-                                    <li role="presentation" class="slds-listbox__item">
-                                        <div class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small slds-text-color_weak">
-                                            <span class="slds-media__body">No matches</span>
-                                        </div>
-                                    </li>
-                                </template>
-                            </ul>
+            <div class="slds-grid slds-grid_vertical-align-start">
+                <div class="slds-col slds-grow">
+                    <div class="slds-combobox_container">
+                        <div class={comboboxClass}>
+                            <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_right" role="none">
+                                <input
+                                    type="text"
+                                    class="slds-input slds-combobox__input"
+                                    role="combobox"
+                                    autocomplete="off"
+                                    value={query}
+                                    placeholder={placeholder}
+                                    onfocus={handleFocus}
+                                    oninput={handleInput}
+                                    onkeydown={handleKeydown}
+                                    onblur={handleBlur} />
+                                <span class="slds-icon_container slds-icon-utility-down slds-input__icon slds-input__icon_right">
+                                    <lightning-icon icon-name="utility:down" size="x-small" alternative-text="Open"></lightning-icon>
+                                </span>
+                            </div>
+                            <template if:true={isOpen}>
+                                <div class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10" role="listbox">
+                                    <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                                        <template for:each={filteredOptions} for:item="opt">
+                                            <li key={opt.value} role="presentation" class="slds-listbox__item">
+                                                <div
+                                                    class={opt.cssClass}
+                                                    role="option"
+                                                    data-value={opt.value}
+                                                    onmousedown={handleOptionMouseDown}>
+                                                    <span class="slds-media__body">
+                                                        <span class="slds-listbox__option-text slds-listbox__option-text_entity">{opt.label}</span>
+                                                    </span>
+                                                </div>
+                                            </li>
+                                        </template>
+                                        <template if:true={hasNoMatches}>
+                                            <li role="presentation" class="slds-listbox__item">
+                                                <div class="slds-media slds-listbox__option slds-listbox__option_plain slds-media_small slds-text-color_weak">
+                                                    <span class="slds-media__body">No matches</span>
+                                                </div>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
                         </div>
-                    </template>
+                    </div>
                 </div>
+                <template if:true={hasValue}>
+                    <div class="slds-col slds-no-flex slds-m-left_xx-small">
+                        <lightning-button-icon
+                            icon-name="utility:close"
+                            size="small"
+                            variant="border-filled"
+                            alternative-text="Clear field"
+                            title="Clear field"
+                            onclick={handleClear}>
+                        </lightning-button-icon>
+                    </div>
+                </template>
             </div>
         </div>
     </div>
