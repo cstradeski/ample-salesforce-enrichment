@@ -27,6 +27,11 @@
         <name>Run_Amplemarket_Enrichment</name>
     </customPermissions>
 
+    <externalCredentialPrincipalAccesses>
+        <enabled>true</enabled>
+        <externalCredentialPrincipal>Amplemarket_External-AmplemarketBearer</externalCredentialPrincipal>
+    </externalCredentialPrincipalAccesses>
+
     <objectPermissions>
         <object>Enrichment_Log__c</object>
         <allowCreate>true</allowCreate>

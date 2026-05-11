@@ -2,34 +2,17 @@
 
 After deploying this package to a sandbox or production org, complete the following.
 
-## 1. Configure the External Credential principal + auth header
+## 1. Set your Amplemarket API key on the External Credential
 
-The metadata deploys an empty `Amplemarket_External` external credential and an `Amplemarket_API` named credential pointing at `https://api.amplemarket.com`. You finish the auth wiring in Setup so the bearer token is never committed to source control.
-
-### 1a. External Credential — add the principal and auth header
+The package ships the `Amplemarket_External` external credential, the `AmplemarketBearer` named principal, the `Authorization: Bearer …` custom header, and the principal-access grants on both perm sets. The only piece you have to add post-install is the actual API key (Salesforce won't let packages ship secret values).
 
 1. Setup → **Named Credentials** → tab **External Credentials** → open **Amplemarket External**
-2. **Principals** → **New**
-   - Parameter Name: `AmplemarketBearer`
-   - Identity Type: `Named Principal`
-   - Sequence Number: `1`
-   - Authentication Parameters → **New** → Name `Token`, Value `<your Amplemarket API key>`
-   - Save
-3. **Custom Headers** → **New**
-   - Name: `Authorization`
-   - Value: `Bearer {!$Credential.Amplemarket_External.Token}`
-   - Sequence Number: `1`
-   - Save
-
-### 1b. Permission Set mappings
-
-In each Permission Set (**Amplemarket Admin** and **Amplemarket User**), enable access to the principal:
-
-1. Setup → **Permission Sets** → open the perm set
-2. **External Credential Principal Access** → **Edit** → enable `Amplemarket External - AmplemarketBearer`
+2. Click the **AmplemarketBearer** principal → **Authentication Parameters** → **New**
+   - Name: `Token`
+   - Value: `<your Amplemarket API key>`
 3. Save
 
-The Named Credential will now inject the `Authorization: Bearer …` header automatically on every Apex callout — no code change needed. To rotate, just edit the `Token` parameter value.
+That's it. The Named Credential will now inject `Authorization: Bearer <your key>` on every Apex callout. To rotate, just edit the `Token` parameter value.
 
 ## 2. Assign permission sets
 
