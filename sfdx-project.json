@@ -4,7 +4,7 @@
       "versionName": "ver 0.1",
       "versionNumber": "0.1.0.NEXT",
       "path": "force-app",
-      "default": false,
+      "default": true,
       "package": "Amplemarket Enrichment",
       "versionDescription": "Amplemarket data enrichment for Lead, Contact, and Account."
     }
