@@ -1,11 +1,11 @@
 {
   "packageDirectories": [
     {
-      "path": "force-app",
-      "default": true,
-      "package": "Amplemarket Enrichment",
       "versionName": "ver 0.1",
       "versionNumber": "0.1.0.NEXT",
+      "path": "force-app",
+      "default": false,
+      "package": "Amplemarket Enrichment",
       "versionDescription": "Amplemarket data enrichment for Lead, Contact, and Account."
     }
   ],
@@ -13,5 +13,7 @@
   "namespace": "ample",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "60.0",
-  "packageAliases": {}
+  "packageAliases": {
+    "Amplemarket Enrichment": "0HodM0000003SpNSAU"
+  }
 }
