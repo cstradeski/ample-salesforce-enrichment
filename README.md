@@ -16,13 +16,25 @@ Salesforce DX project that enriches **Lead, Contact, and Account** records via t
 | `Enrich_*` flows + quick actions | Record-page **Enrich with Amplemarket** action for Lead, Contact, Account |
 | `Amplemarket_Admin` / `Amplemarket_User` permission sets | Admin vs end-user access |
 
-## Deploy
+## Distribution model
+
+This is a **2GP managed package** with namespace `ample`. End users receive it as a package install (a `04t...` URL or AppExchange listing); they do not deploy source. See [PACKAGING.md](PACKAGING.md) for the build, version, and promote workflow.
+
+## Install (subscriber orgs)
+
+```bash
+sf package install --package 04t... --target-org <yourOrg> --wait 10
+```
+
+Then follow [POST_DEPLOY.md](POST_DEPLOY.md) to set your API token, assign permission sets, and configure record-page actions.
+
+## Source deploy (development only)
+
+For development against a scratch/sandbox without going through packaging:
 
 ```bash
 sf project deploy start --source-dir force-app --target-org <yourOrg>
 ```
-
-Then follow [POST_DEPLOY.md](POST_DEPLOY.md) to set your API token and assign permission sets.
 
 ## Test
 

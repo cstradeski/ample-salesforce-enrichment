@@ -11,10 +11,8 @@ public with sharing class AmplemarketBatchEnrichQueueable implements Queueable, 
     public void execute(QueueableContext ctx) {
         if (recordIds == null || recordIds.isEmpty()) return;
 
-        // For now run each record synchronously inside the queueable. With small batches
-        // (< ~20) this stays under callout-per-transaction limits. For larger batches,
-        // an admin can wire a chained queueable or a scheduled flow that calls the
-        // invocable with smaller chunks.
+        // Run up to 20 records per transaction. enrichBatch keeps all callouts ahead of
+        // all DML so we don't hit "uncommitted work pending" between iterations.
         Integer maxPerTransaction = 20;
         List<Id> chunk = new List<Id>();
         List<Id> remainder = new List<Id>();
@@ -23,15 +21,18 @@ public with sharing class AmplemarketBatchEnrichQueueable implements Queueable, 
             else remainder.add(recordIds[i]);
         }
 
-        for (Id recId : chunk) {
-            try {
-                AmplemarketEnrichmentService.enrichSingle(recId, objectApiName);
-            } catch (Exception e) {
-                // Service writes its own error logs; this is a final safety net.
-                AmplemarketEnrichmentService.writeLog(
-                    recId, objectApiName, null, 'Error',
-                    null, null, 'Queueable failure: ' + e.getMessage(), null, Datetime.now()
-                );
+        try {
+            AmplemarketEnrichmentService.enrichBatch(chunk, objectApiName);
+        } catch (Exception e) {
+            // Last-resort fallback: log a single batch-level failure for any record we
+            // couldn't process. Per-record errors are already logged inside enrichBatch.
+            for (Id recId : chunk) {
+                try {
+                    AmplemarketEnrichmentService.writeLog(
+                        recId, objectApiName, null, 'Error',
+                        null, null, 'Queueable failure: ' + e.getMessage(), null, Datetime.now()
+                    );
+                } catch (Exception ignore) { /* swallow */ }
             }
         }
 

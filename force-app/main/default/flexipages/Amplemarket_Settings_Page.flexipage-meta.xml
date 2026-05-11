@@ -3,7 +3,7 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>c:amplemarketSettings</componentName>
+                <componentName>ample:amplemarketSettings</componentName>
                 <identifier>amplemarketSettings1</identifier>
             </componentInstance>
         </itemInstances>

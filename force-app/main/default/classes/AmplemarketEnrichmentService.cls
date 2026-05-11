@@ -275,6 +275,255 @@ public with sharing class AmplemarketEnrichmentService {
         return result;
     }
 
+    /**
+     * Bulk batch enrichment for the queueable path. Splits work into phases so that
+     * ALL callouts happen before ANY DML in the transaction — otherwise iteration N+1's
+     * callout would fail with "uncommitted work pending" after iteration N's DML.
+     *
+     * Returns one ServiceResult per input recordId, in the same order.
+     */
+    public static List<ServiceResult> enrichBatch(List<Id> recordIds, String objectApiName) {
+        List<ServiceResult> results = new List<ServiceResult>();
+        if (recordIds == null || recordIds.isEmpty()) return results;
+
+        Datetime started = Datetime.now();
+        String objApi = String.isNotBlank(objectApiName)
+            ? objectApiName
+            : recordIds[0].getSObjectType().getDescribe().getName();
+
+        // Pre-allocate one result slot per recordId (preserves input ordering).
+        for (Integer i = 0; i < recordIds.size(); i++) results.add(new ServiceResult());
+
+        Map<String, List<Amplemarket_Mapping__c>> grouped = loadMappings(objApi);
+        List<Amplemarket_Mapping__c> matchInputs = grouped.get(AmplemarketDTO.MAPPING_MATCH_INPUT);
+        List<Amplemarket_Mapping__c> outputs = grouped.get(AmplemarketDTO.MAPPING_OUTPUT_FIELD);
+
+        // No mappings → all rows error out with a single bulk log insert at the end.
+        if (matchInputs == null || matchInputs.isEmpty()) {
+            String msg = 'No active match-input mappings configured for ' + objApi;
+            List<Enrichment_Log__c> errLogs = new List<Enrichment_Log__c>();
+            for (Integer i = 0; i < recordIds.size(); i++) {
+                ServiceResult r = results[i];
+                r.message = msg;
+                r.appliedFieldsHtml = errorHtml(msg);
+                errLogs.add(buildLog(recordIds[i], objApi, null, 'Error', null, null, msg, null, started));
+            }
+            insert errLogs;
+            for (Integer i = 0; i < errLogs.size(); i++) results[i].logId = errLogs[i].Id;
+            return results;
+        }
+
+        // One bulk query for all source records.
+        Set<String> fields = new Set<String>{ 'Id' };
+        for (Amplemarket_Mapping__c m : matchInputs) {
+            if (String.isNotBlank(m.Salesforce_Field__c)) fields.add(m.Salesforce_Field__c);
+        }
+        if (outputs != null) {
+            for (Amplemarket_Mapping__c m : outputs) {
+                if (String.isNotBlank(m.Salesforce_Field__c)) fields.add(m.Salesforce_Field__c);
+            }
+        }
+        String soql = 'SELECT ' + String.join(new List<String>(fields), ', ')
+            + ' FROM ' + objApi + ' WHERE Id IN :recordIds';
+        Map<Id, SObject> sourceById = new Map<Id, SObject>();
+        for (SObject row : Database.query(soql)) {
+            sourceById.put((Id) row.get('Id'), row);
+        }
+
+        // Per-record state collected across phases. Index aligns with `recordIds` / `results`.
+        List<Map<String, String>> queryParamsByIdx = new List<Map<String, String>>();
+        List<String> endpointByIdx = new List<String>();
+        List<AmplemarketHttpClient.Result> httpByIdx = new List<AmplemarketHttpClient.Result>();
+        List<String> errorByIdx = new List<String>();          // null if OK so far
+        List<Map<String, Object>> parsedByIdx = new List<Map<String, Object>>();
+        List<SObject> toUpdateByIdx = new List<SObject>();
+        List<AmplemarketFieldMapper.FieldMapResult> mapResByIdx = new List<AmplemarketFieldMapper.FieldMapResult>();
+        List<Decimal> creditsByIdx = new List<Decimal>();
+
+        // Phase 1: per-record callout. NO DML in this phase.
+        for (Integer i = 0; i < recordIds.size(); i++) {
+            Id recId = recordIds[i];
+            queryParamsByIdx.add(null);
+            endpointByIdx.add(null);
+            httpByIdx.add(null);
+            errorByIdx.add(null);
+            parsedByIdx.add(null);
+            toUpdateByIdx.add(null);
+            mapResByIdx.add(null);
+            creditsByIdx.add(0);
+
+            SObject record = sourceById.get(recId);
+            if (record == null) {
+                errorByIdx[i] = objApi + ' ' + recId + ' not found';
+                continue;
+            }
+
+            Map<String, String> queryParams = new Map<String, String>();
+            Boolean revealEmail = false;
+            Boolean revealPhone = false;
+            for (Amplemarket_Mapping__c m : matchInputs) {
+                if (m.Is_Active__c != true) continue;
+                String key = m.Amplemarket_Field__c;
+                if (String.isBlank(key)) continue;
+                if (m.Reveal_Email__c == true) revealEmail = true;
+                if (m.Reveal_Phone__c == true) revealPhone = true;
+                Object val = record.get(m.Salesforce_Field__c);
+                if (val != null && String.isNotBlank(String.valueOf(val))) {
+                    String normalized = normalizeMatchValue(key, String.valueOf(val));
+                    if (String.isNotBlank(normalized)) queryParams.put(key, normalized);
+                }
+            }
+            if (queryParams.isEmpty()) {
+                errorByIdx[i] = 'Source record has no values for any configured match input.';
+                continue;
+            }
+
+            String endpoint;
+            if (AmplemarketDTO.isPersonObject(objApi)) {
+                endpoint = '/people/find';
+                if (revealEmail && !queryParams.containsKey('email')) {
+                    queryParams.put('reveal_email', 'true');
+                }
+                if (revealPhone) queryParams.put('reveal_phone_numbers', 'true');
+            } else if (AmplemarketDTO.isCompanyObject(objApi)) {
+                endpoint = '/companies/find';
+            } else {
+                errorByIdx[i] = 'Object not supported: ' + objApi;
+                continue;
+            }
+            queryParamsByIdx[i] = queryParams;
+            endpointByIdx[i] = endpoint;
+
+            try {
+                httpByIdx[i] = new AmplemarketHttpClient().get(endpoint, queryParams);
+            } catch (AmplemarketHttpClient.CalloutException ce) {
+                errorByIdx[i] = ce.getMessage();
+            } catch (Exception ex) {
+                errorByIdx[i] = 'Callout failed: ' + ex.getMessage();
+            }
+        }
+
+        // Phase 2: build SObjects to update, in memory only. Still NO DML.
+        List<SObject> toUpdate = new List<SObject>();
+        List<Integer> toUpdateIdx = new List<Integer>();
+        for (Integer i = 0; i < recordIds.size(); i++) {
+            if (errorByIdx[i] != null) continue;
+            AmplemarketHttpClient.Result http = httpByIdx[i];
+            if (http == null) continue;
+            if (!http.isSuccess()) {
+                errorByIdx[i] = 'API returned ' + http.statusCode + ': ' + http.status;
+                continue;
+            }
+            Map<String, Object> parsed;
+            try {
+                parsed = (Map<String, Object>) JSON.deserializeUntyped(http.body);
+            } catch (Exception e) {
+                errorByIdx[i] = 'Could not parse Amplemarket response: ' + e.getMessage();
+                continue;
+            }
+            parsedByIdx[i] = parsed;
+
+            SObject sob = Schema.getGlobalDescribe().get(objApi).newSObject(recordIds[i]);
+            AmplemarketFieldMapper.FieldMapResult mapRes = AmplemarketFieldMapper.applyOutputs(
+                sob, sourceById.get(recordIds[i]), objApi, parsed,
+                outputs == null ? new List<Amplemarket_Mapping__c>() : outputs
+            );
+            toUpdateByIdx[i] = sob;
+            mapResByIdx[i] = mapRes;
+            creditsByIdx[i] = estimateCredits(parsed,
+                queryParamsByIdx[i].containsKey('reveal_email'),
+                queryParamsByIdx[i].containsKey('reveal_phone_numbers'));
+
+            if (mapRes.fieldsApplied > 0) {
+                toUpdate.add(sob);
+                toUpdateIdx.add(i);
+            }
+        }
+
+        // Phase 3: bulk DML — one update for the whole batch.
+        if (!toUpdate.isEmpty()) {
+            Database.SaveResult[] saveRes = Database.update(toUpdate, false);
+            for (Integer k = 0; k < saveRes.size(); k++) {
+                if (!saveRes[k].isSuccess() && !saveRes[k].getErrors().isEmpty()) {
+                    Integer i = toUpdateIdx[k];
+                    errorByIdx[i] = 'DML failed when writing enrichment: '
+                        + saveRes[k].getErrors()[0].getMessage();
+                }
+            }
+        }
+
+        // Phase 4: bulk insert logs (one row per input record).
+        List<Enrichment_Log__c> logs = new List<Enrichment_Log__c>();
+        for (Integer i = 0; i < recordIds.size(); i++) {
+            ServiceResult r = results[i];
+            String reqJson = queryParamsByIdx[i] == null ? null : JSON.serialize(queryParamsByIdx[i]);
+            String resBody = httpByIdx[i] == null ? null : httpByIdx[i].body;
+            if (errorByIdx[i] != null) {
+                r.message = errorByIdx[i];
+                r.appliedFieldsHtml = errorHtml(r.message);
+                r.success = false;
+                r.fieldsApplied = 0;
+                r.creditsUsed = 0;
+                logs.add(buildLog(recordIds[i], objApi, endpointByIdx[i], 'Error',
+                    reqJson, resBody, r.message, null, started));
+            } else {
+                AmplemarketFieldMapper.FieldMapResult mapRes = mapResByIdx[i];
+                String status = mapRes.warnings.isEmpty() && mapRes.fieldsApplied > 0
+                    ? 'Success'
+                    : (mapRes.fieldsApplied > 0 ? 'Partial' : 'Error');
+                String msg = mapRes.fieldsApplied + ' field(s) updated' +
+                    (mapRes.warnings.isEmpty() ? '' : '; warnings: ' + String.join(mapRes.warnings, '; '));
+                r.success = mapRes.fieldsApplied > 0;
+                r.message = msg;
+                r.fieldsApplied = mapRes.fieldsApplied;
+                r.creditsUsed = creditsByIdx[i];
+                r.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes, creditsByIdx[i]);
+                logs.add(buildLog(recordIds[i], objApi, endpointByIdx[i], status,
+                    reqJson, resBody, msg, creditsByIdx[i], started));
+            }
+        }
+        insert logs;
+        for (Integer i = 0; i < logs.size(); i++) results[i].logId = logs[i].Id;
+
+        // Phase 5: bulk insert field outcomes.
+        List<Enrichment_Log_Field__c> outcomeRows = new List<Enrichment_Log_Field__c>();
+        for (Integer i = 0; i < recordIds.size(); i++) {
+            AmplemarketFieldMapper.FieldMapResult mapRes = mapResByIdx[i];
+            if (mapRes == null || mapRes.outcomes == null) continue;
+            Id parentLogId = logs[i].Id;
+            for (AmplemarketFieldMapper.FieldOutcome o : mapRes.outcomes) {
+                outcomeRows.add(new Enrichment_Log_Field__c(
+                    Enrichment_Log__c = parentLogId,
+                    Salesforce_Field__c = o.salesforceField,
+                    Amplemarket_Field__c = o.amplemarketField,
+                    Old_Value__c = o.oldValue,
+                    New_Value__c = o.newValue,
+                    Status__c = o.status,
+                    Error_Detail__c = o.errorDetail
+                ));
+            }
+        }
+        if (!outcomeRows.isEmpty()) insert outcomeRows;
+
+        return results;
+    }
+
+    private static Enrichment_Log__c buildLog(Id recordId, String objectApiName, String endpoint, String status,
+            String requestPayload, String responsePayload, String errorMessage,
+            Decimal creditsUsed, Datetime started) {
+        return new Enrichment_Log__c(
+            Record_Id__c = recordId,
+            Object_API_Name__c = objectApiName,
+            Endpoint__c = endpoint,
+            Status__c = status,
+            Request_Payload__c = truncate(requestPayload, LOG_PAYLOAD_TRUNCATE),
+            Response_Payload__c = truncate(responsePayload, 130000),
+            Error_Message__c = truncate(errorMessage, LOG_PAYLOAD_TRUNCATE),
+            Credits_Used__c = creditsUsed,
+            Run_Timestamp__c = started == null ? Datetime.now() : started
+        );
+    }
+
     @TestVisible
     private static String buildAppliedFieldsHtml(String objectApiName, AmplemarketFieldMapper.FieldMapResult mapRes, Decimal creditsUsed) {
         if (mapRes == null || mapRes.outcomes == null) return null;

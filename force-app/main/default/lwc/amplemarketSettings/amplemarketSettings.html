@@ -62,16 +62,20 @@
                             <div class="slds-grid slds-gutters slds-m-top_small">
                                 <div class="slds-col">
                                     <lightning-input
-                                        type="checkbox"
+                                        type="toggle"
                                         label="Reveal email (1 credit when revealed)"
+                                        message-toggle-active="Yes"
+                                        message-toggle-inactive="No"
                                         checked={currentMappings.reveals.email}
                                         onchange={handleRevealEmailChange}>
                                     </lightning-input>
                                 </div>
                                 <div class="slds-col">
                                     <lightning-input
-                                        type="checkbox"
+                                        type="toggle"
                                         label="Reveal phone numbers (1 credit when revealed)"
+                                        message-toggle-active="Yes"
+                                        message-toggle-inactive="No"
                                         checked={currentMappings.reveals.phone}
                                         onchange={handleRevealPhoneChange}>
                                     </lightning-input>
