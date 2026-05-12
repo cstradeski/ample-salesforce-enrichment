@@ -29,7 +29,7 @@
 
     <externalCredentialPrincipalAccesses>
         <enabled>true</enabled>
-        <externalCredentialPrincipal>Amplemarket_External-AmplemarketBearer</externalCredentialPrincipal>
+        <externalCredentialPrincipal>ample__Amplemarket_External-AmplemarketBearer</externalCredentialPrincipal>
     </externalCredentialPrincipalAccesses>
 
     <objectPermissions>
