@@ -1,6 +1,6 @@
 public with sharing class AmplemarketHttpClient {
 
-    public static final String NAMED_CREDENTIAL = 'callout:Amplemarket_API';
+    public static final String NAMED_CREDENTIAL = 'callout:ample__Amplemarket_API';
     public static final Integer DEFAULT_TIMEOUT_MS = 60000;
 
     public class CalloutException extends Exception {}
