@@ -79,7 +79,7 @@ export default class AmplemarketSettings extends LightningElement {
                 if (!bucket) return;
                 if (r.mappingType === 'Match Input') {
                     bucket.matchInputs.push({ ...r });
-                    if (r.amplemarketField === 'email' && r.revealEmail) bucket.reveals.email = true;
+                    if (r.revealEmail) bucket.reveals.email = true;
                     if (r.revealPhone) bucket.reveals.phone = true;
                 } else if (r.mappingType === 'Output Field') {
                     bucket.outputs.push({
@@ -213,7 +213,7 @@ export default class AmplemarketSettings extends LightningElement {
                     mappingType: 'Match Input',
                     amplemarketField: mi.amplemarketField,
                     salesforceField: mi.salesforceField,
-                    revealEmail: mi.amplemarketField === 'email' && bucket.reveals.email,
+                    revealEmail: bucket.reveals.email,
                     revealPhone: bucket.reveals.phone,
                     isActive: mi.isActive !== false
                 });
