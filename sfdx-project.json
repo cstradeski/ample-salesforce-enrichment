@@ -1,8 +1,8 @@
 {
   "packageDirectories": [
     {
-      "versionName": "ver 0.1",
-      "versionNumber": "0.1.0.NEXT",
+      "versionName": "ver 0.3",
+      "versionNumber": "0.3.0.NEXT",
       "path": "force-app",
       "default": true,
       "package": "Amplemarket Enrichment",
@@ -17,6 +17,7 @@
     "Amplemarket Enrichment": "0HodM0000003SpNSAU",
     "Amplemarket Enrichment@0.1.0-1": "04tdM000000SzlJQAS",
     "Amplemarket Enrichment@0.1.0-2": "04tdM000000T1DdQAK",
-    "Amplemarket Enrichment@0.1.0-3": "04tdM000000T1NJQA0"
+    "Amplemarket Enrichment@0.1.0-3": "04tdM000000T1NJQA0",
+    "Amplemarket Enrichment@0.2.0-1": "04tdM000000TCYrQAO"
   }
 }
