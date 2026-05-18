@@ -1,8 +1,9 @@
 {
   "packageDirectories": [
     {
-      "versionName": "ver 0.3",
-      "versionNumber": "0.3.0.NEXT",
+      "versionName": "ver 0.4",
+      "versionNumber": "0.4.0.NEXT",
+      "ancestorVersion": "0.3.0",
       "path": "force-app",
       "default": true,
       "package": "Amplemarket Enrichment",
@@ -14,6 +15,9 @@
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "60.0",
   "packageAliases": {
-    "Amplemarket Enrichment": "04tdM000000TCc5QAG",
+    "Amplemarket Enrichment": "0HodM0000003SpNSAU",
+    "Amplemarket Enrichment@0.3.0-1": "04tdM000000TCc5QAG",
+    "Amplemarket Enrichment@0.4.0-1": "04tdM000000TDBZQA4",
+    "Amplemarket Enrichment@0.4.0-2": "04tdM000000TDDBQA4"
   }
 }
