@@ -5,10 +5,17 @@
     <environments>Default</environments>
     <interviewLabel>Enrich Account {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Enrich Account with Amplemarket</label>
+    <isTemplate>true</isTemplate>
     <processMetadataValues>
         <name>BuilderType</name>
         <value>
             <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
         </value>
     </processMetadataValues>
     <processType>Flow</processType>
@@ -82,6 +89,7 @@
         </connector>
         <faultConnector>
             <targetReference>Show_Fault</targetReference>
+            <isGoTo>true</isGoTo>
         </faultConnector>
     </actionCalls>
     <screens>

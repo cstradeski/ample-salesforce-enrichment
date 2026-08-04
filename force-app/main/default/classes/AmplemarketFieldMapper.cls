@@ -133,7 +133,13 @@ public with sharing class AmplemarketFieldMapper {
     }
 
     /**
-     * Walk a JSON tree by dot-path. Supports `a.b.c` and indexed array access `a[0].b`.
+     * Walk a JSON tree by dot-path. Supports:
+     *   - nested keys:            `a.b.c`
+     *   - fixed array index:      `a[0].b`
+     *   - predicate array select: `a[key=value].b` — the first element of the `a`
+     *     array whose `key` stringifies (case-insensitively) to `value`; if no
+     *     element matches, falls back to the first element of the array. Used to
+     *     pick a company's primary location: `locations[is_primary=true].address`.
      * Returns null if any segment is missing.
      */
     @TestVisible
@@ -143,13 +149,21 @@ public with sharing class AmplemarketFieldMapper {
         for (String rawSeg : path.split('\\.')) {
             if (node == null) return null;
             String seg = rawSeg;
-            // Handle bracket-index e.g. phone_numbers[0]
+            // Handle bracket selector e.g. phone_numbers[0] or locations[is_primary=true]
             Integer idx = null;
+            String predKey = null;
+            String predVal = null;
             Integer lb = seg.indexOf('[');
             if (lb >= 0 && seg.endsWith(']')) {
-                String idxStr = seg.substring(lb + 1, seg.length() - 1);
-                try { idx = Integer.valueOf(idxStr); } catch (Exception e) { return null; }
+                String sel = seg.substring(lb + 1, seg.length() - 1);
                 seg = seg.substring(0, lb);
+                Integer eq = sel.indexOf('=');
+                if (eq >= 0) {
+                    predKey = sel.substring(0, eq).trim();
+                    predVal = sel.substring(eq + 1).trim();
+                } else {
+                    try { idx = Integer.valueOf(sel); } catch (Exception e) { return null; }
+                }
             }
             if (node instanceof Map<String, Object>) {
                 node = ((Map<String, Object>) node).get(seg);
@@ -163,9 +177,34 @@ public with sharing class AmplemarketFieldMapper {
                 } else {
                     return null;
                 }
+            } else if (predKey != null) {
+                if (node instanceof List<Object>) {
+                    node = selectByPredicate((List<Object>) node, predKey, predVal);
+                } else {
+                    return null;
+                }
             }
         }
         return node;
+    }
+
+    /**
+     * First array element whose `key` matches `value` (case-insensitive on the
+     * stringified value, so `is_primary=true` matches a JSON boolean true). Falls
+     * back to the first element when nothing matches; returns null for an empty list.
+     */
+    @TestVisible
+    private static Object selectByPredicate(List<Object> arr, String key, String value) {
+        if (arr == null || arr.isEmpty()) return null;
+        for (Object el : arr) {
+            if (el instanceof Map<String, Object>) {
+                Object cand = ((Map<String, Object>) el).get(key);
+                if (cand != null && String.valueOf(cand).equalsIgnoreCase(value)) {
+                    return el;
+                }
+            }
+        }
+        return arr[0];
     }
 
     @TestVisible

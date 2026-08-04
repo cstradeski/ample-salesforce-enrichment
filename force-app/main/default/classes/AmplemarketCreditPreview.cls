@@ -5,6 +5,10 @@ global with sharing class AmplemarketCreditPreview {
         global Id recordId;
         @InvocableVariable(label='Object API Name (optional, derived from Id if blank)')
         global String objectApiName;
+        @InvocableVariable(label='Reveal Email (override; leave blank to use settings default)')
+        global Boolean revealEmail;
+        @InvocableVariable(label='Reveal Phone Number (override; leave blank to use settings default)')
+        global Boolean revealPhone;
     }
 
     global class Response {
@@ -29,7 +33,8 @@ global with sharing class AmplemarketCreditPreview {
         if (reqs == null || reqs.isEmpty()) return out;
         for (Request r : reqs) {
             AmplemarketEnrichmentService.CreditPreview cp =
-                AmplemarketEnrichmentService.previewCredits(r.recordId, r.objectApiName);
+                AmplemarketEnrichmentService.previewCredits(
+                    r.recordId, r.objectApiName, r.revealEmail, r.revealPhone);
             Response resp = new Response();
             resp.hasMappings = cp.hasMappings;
             resp.bestCase = cp.bestCase;

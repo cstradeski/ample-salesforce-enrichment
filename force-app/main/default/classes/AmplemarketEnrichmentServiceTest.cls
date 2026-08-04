@@ -138,6 +138,99 @@ private class AmplemarketEnrichmentServiceTest {
     }
 
     @IsTest
+    static void revealOverrideForcesRevealOnWhenSettingsDefaultOff() {
+        // LinkedIn match input (so email isn't a match key), reveal flags OFF in settings.
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Website = 'https://linkedin.com/in/jane');
+        insert l;
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+                Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website',
+                Reveal_Email__c = false, Reveal_Phone__c = false, Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
+        };
+        CapturingMock mock = new CapturingMock();
+        Test.setMock(HttpCalloutMock.class, mock);
+
+        Test.startTest();
+        AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead', true, true);
+        Test.stopTest();
+
+        System.assert(mock.capturedEndpoint.contains('reveal_email=true'),
+            'override should force reveal_email on. Got: ' + mock.capturedEndpoint);
+        System.assert(mock.capturedEndpoint.contains('reveal_phone_numbers=true'),
+            'override should force reveal_phone on. Got: ' + mock.capturedEndpoint);
+    }
+
+    @IsTest
+    static void revealOverrideForcesRevealOffWhenSettingsDefaultOn() {
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Website = 'https://linkedin.com/in/jane');
+        insert l;
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+                Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website',
+                Reveal_Email__c = true, Reveal_Phone__c = true, Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
+        };
+        CapturingMock mock = new CapturingMock();
+        Test.setMock(HttpCalloutMock.class, mock);
+
+        Test.startTest();
+        AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead', false, false);
+        Test.stopTest();
+
+        System.assert(!mock.capturedEndpoint.contains('reveal_email'),
+            'override false should suppress reveal_email. Got: ' + mock.capturedEndpoint);
+        System.assert(!mock.capturedEndpoint.contains('reveal_phone'),
+            'override false should suppress reveal_phone. Got: ' + mock.capturedEndpoint);
+    }
+
+    @IsTest
+    static void revealDefaultsReflectSettingsForPersonAndCompany() {
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website',
+            Reveal_Email__c = true, Reveal_Phone__c = false, Is_Active__c = true);
+
+        AmplemarketEnrichmentService.RevealDefaults person =
+            AmplemarketEnrichmentService.revealDefaults(null, 'Lead');
+        System.assertEquals(true, person.isPerson);
+        System.assertEquals(true, person.revealEmail);
+        System.assertEquals(false, person.revealPhone);
+
+        // Company objects never reveal — always false regardless of any config.
+        AmplemarketEnrichmentService.RevealDefaults company =
+            AmplemarketEnrichmentService.revealDefaults(null, 'Account');
+        System.assertEquals(false, company.isPerson);
+        System.assertEquals(false, company.revealEmail);
+        System.assertEquals(false, company.revealPhone);
+    }
+
+    @IsTest
+    static void previewCreditsOverrideRaisesWorstCase() {
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Website = 'https://linkedin.com/in/jane');
+        insert l;
+        // Settings default has reveals OFF; override turns both on for the estimate.
+        insert new Amplemarket_Mapping__c(
+            Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+            Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website',
+            Reveal_Email__c = false, Reveal_Phone__c = false, Is_Active__c = true);
+
+        AmplemarketEnrichmentService.CreditPreview def =
+            AmplemarketEnrichmentService.previewCredits(l.Id, 'Lead');
+        System.assertEquals(0.5, def.worstCase, 'no reveals -> match only');
+
+        AmplemarketEnrichmentService.CreditPreview overridden =
+            AmplemarketEnrichmentService.previewCredits(l.Id, 'Lead', true, true);
+        System.assertEquals(2.5, overridden.worstCase, 'match + reveal email + reveal phone');
+    }
+
+    @IsTest
     static void normalizeMatchValueStripsProtocolAndWww() {
         System.assertEquals('acme.com', AmplemarketEnrichmentService.normalizeMatchValue('domain', 'https://www.acme.com/about'));
         System.assertEquals('acme.com', AmplemarketEnrichmentService.normalizeMatchValue('domain', 'http://acme.com'));

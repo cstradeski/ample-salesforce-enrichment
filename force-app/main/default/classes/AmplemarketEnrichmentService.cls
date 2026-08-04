@@ -23,11 +23,54 @@ public with sharing class AmplemarketEnrichmentService {
     }
 
     /**
+     * Settings-derived default reveal flags for an object. Mirrors the OR-across-
+     * active-match-inputs logic used by enrichSingle/enrichBatch. Used to pre-seed
+     * the reveal toggles in the screen flows (via AmplemarketRevealDefaults).
+     */
+    public class RevealDefaults {
+        public Boolean isPerson = false;
+        public Boolean revealEmail = false;
+        public Boolean revealPhone = false;
+    }
+
+    public static RevealDefaults revealDefaults(Id recordId, String objectApiName) {
+        RevealDefaults rd = new RevealDefaults();
+        String objApi = String.isNotBlank(objectApiName)
+            ? objectApiName
+            : (recordId == null ? null : recordId.getSObjectType().getDescribe().getName());
+        if (String.isBlank(objApi)) return rd;
+
+        rd.isPerson = AmplemarketDTO.isPersonObject(objApi);
+        if (!rd.isPerson) return rd; // reveals only apply to /people/find
+
+        List<Amplemarket_Mapping__c> matchInputs =
+            loadMappings(objApi).get(AmplemarketDTO.MAPPING_MATCH_INPUT);
+        if (matchInputs == null) return rd;
+        for (Amplemarket_Mapping__c m : matchInputs) {
+            if (m.Is_Active__c != true) continue;
+            if (String.isBlank(m.Amplemarket_Field__c)) continue;
+            if (m.Reveal_Email__c == true) rd.revealEmail = true;
+            if (m.Reveal_Phone__c == true) rd.revealPhone = true;
+        }
+        return rd;
+    }
+
+    /**
      * Pre-flight credit estimate. Reads mapping config and returns best/worst case
      * costs without making the callout. Surfaced via AmplemarketCreditPreview to
      * the screen flows so the user can confirm before spending credits.
      */
     public static CreditPreview previewCredits(Id recordId, String objectApiName) {
+        return previewCredits(recordId, objectApiName, null, null);
+    }
+
+    /**
+     * As previewCredits, but with optional per-run reveal overrides from the flow.
+     * A null override falls back to the settings-derived default; a non-null value
+     * (true/false) takes precedence, so the estimate matches what enrichSingle will send.
+     */
+    public static CreditPreview previewCredits(Id recordId, String objectApiName,
+            Boolean revealEmailOverride, Boolean revealPhoneOverride) {
         CreditPreview cp = new CreditPreview();
         String objApi = String.isNotBlank(objectApiName)
             ? objectApiName
@@ -63,6 +106,10 @@ public with sharing class AmplemarketEnrichmentService {
             if (m.Reveal_Email__c == true) cp.revealEmail = true;
             if (m.Reveal_Phone__c == true) cp.revealPhone = true;
         }
+
+        // Flow overrides win over the settings default (null = keep default).
+        if (revealEmailOverride != null) cp.revealEmail = revealEmailOverride;
+        if (revealPhoneOverride != null) cp.revealPhone = revealPhoneOverride;
 
         // The service only suppresses reveal_email when 'email' actually ends up in
         // queryParams, which requires the source record to have a non-blank value
@@ -134,6 +181,15 @@ public with sharing class AmplemarketEnrichmentService {
      * Synchronous single-record enrichment. Used by the screen-flow path.
      */
     public static ServiceResult enrichSingle(Id recordId, String objectApiName) {
+        return enrichSingle(recordId, objectApiName, null, null);
+    }
+
+    /**
+     * As enrichSingle, with optional per-run reveal overrides from the flow.
+     * Null override → settings default; non-null (true/false) → force that value.
+     */
+    public static ServiceResult enrichSingle(Id recordId, String objectApiName,
+            Boolean revealEmailOverride, Boolean revealPhoneOverride) {
         ServiceResult result = new ServiceResult();
         Datetime started = Datetime.now();
 
@@ -182,6 +238,10 @@ public with sharing class AmplemarketEnrichmentService {
                 if (String.isNotBlank(normalized)) queryParams.put(key, normalized);
             }
         }
+
+        // Flow overrides win over the settings default (null = keep default).
+        if (revealEmailOverride != null) revealEmail = revealEmailOverride;
+        if (revealPhoneOverride != null) revealPhone = revealPhoneOverride;
 
         if (queryParams.isEmpty()) {
             result.message = 'Source record has no values for any configured match input.';
@@ -283,6 +343,16 @@ public with sharing class AmplemarketEnrichmentService {
      * Returns one ServiceResult per input recordId, in the same order.
      */
     public static List<ServiceResult> enrichBatch(List<Id> recordIds, String objectApiName) {
+        return enrichBatch(recordIds, objectApiName, null, null);
+    }
+
+    /**
+     * As enrichBatch, with optional per-run reveal overrides applied to every record
+     * in the batch. Null override → settings default; non-null → force that value.
+     * The invocable groups records so a batch shares one override pair.
+     */
+    public static List<ServiceResult> enrichBatch(List<Id> recordIds, String objectApiName,
+            Boolean revealEmailOverride, Boolean revealPhoneOverride) {
         List<ServiceResult> results = new List<ServiceResult>();
         if (recordIds == null || recordIds.isEmpty()) return results;
 
@@ -373,6 +443,11 @@ public with sharing class AmplemarketEnrichmentService {
                     if (String.isNotBlank(normalized)) queryParams.put(key, normalized);
                 }
             }
+
+            // Flow overrides win over the settings default (null = keep default).
+            if (revealEmailOverride != null) revealEmail = revealEmailOverride;
+            if (revealPhoneOverride != null) revealPhone = revealPhoneOverride;
+
             if (queryParams.isEmpty()) {
                 errorByIdx[i] = 'Source record has no values for any configured match input.';
                 continue;

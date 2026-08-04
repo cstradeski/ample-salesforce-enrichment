@@ -5,6 +5,10 @@ global with sharing class AmplemarketEnrichInvocable {
         global Id recordId;
         @InvocableVariable(label='Object API Name (optional, derived from Id if blank)')
         global String objectApiName;
+        @InvocableVariable(label='Reveal Email (override; leave blank to use settings default)')
+        global Boolean revealEmail;
+        @InvocableVariable(label='Reveal Phone Number (override; leave blank to use settings default)')
+        global Boolean revealPhone;
     }
 
     global class Response {
@@ -33,7 +37,8 @@ global with sharing class AmplemarketEnrichInvocable {
 
         if (reqs.size() == 1) {
             Request r = reqs[0];
-            AmplemarketEnrichmentService.ServiceResult sr = AmplemarketEnrichmentService.enrichSingle(r.recordId, r.objectApiName);
+            AmplemarketEnrichmentService.ServiceResult sr = AmplemarketEnrichmentService.enrichSingle(
+                r.recordId, r.objectApiName, r.revealEmail, r.revealPhone);
             Response resp = new Response();
             resp.success = sr.success;
             resp.message = sr.message;
@@ -45,19 +50,34 @@ global with sharing class AmplemarketEnrichInvocable {
             return out;
         }
 
-        // Bulk path: group by object, dispatch async, return placeholders.
-        Map<String, List<Id>> idsByObject = new Map<String, List<Id>>();
+        // Bulk path: group by object AND reveal override (records with different
+        // overrides can't share a batch), dispatch async, return placeholders.
+        Map<String, List<Id>> idsByKey = new Map<String, List<Id>>();
+        Map<String, String> objByKey = new Map<String, String>();
+        Map<String, Boolean> revealEmailByKey = new Map<String, Boolean>();
+        Map<String, Boolean> revealPhoneByKey = new Map<String, Boolean>();
         for (Request r : reqs) {
             if (r.recordId == null) continue;
             String objApi = String.isNotBlank(r.objectApiName)
                 ? r.objectApiName
                 : r.recordId.getSObjectType().getDescribe().getName();
-            if (!idsByObject.containsKey(objApi)) idsByObject.put(objApi, new List<Id>());
-            idsByObject.get(objApi).add(r.recordId);
+            // 'x' marks a null (unset) override so it groups apart from explicit true/false.
+            String key = objApi + '|'
+                + (r.revealEmail == null ? 'x' : String.valueOf(r.revealEmail)) + '|'
+                + (r.revealPhone == null ? 'x' : String.valueOf(r.revealPhone));
+            if (!idsByKey.containsKey(key)) {
+                idsByKey.put(key, new List<Id>());
+                objByKey.put(key, objApi);
+                revealEmailByKey.put(key, r.revealEmail);
+                revealPhoneByKey.put(key, r.revealPhone);
+            }
+            idsByKey.get(key).add(r.recordId);
         }
 
-        for (String objApi : idsByObject.keySet()) {
-            System.enqueueJob(new AmplemarketBatchEnrichQueueable(objApi, idsByObject.get(objApi)));
+        for (String key : idsByKey.keySet()) {
+            System.enqueueJob(new AmplemarketBatchEnrichQueueable(
+                objByKey.get(key), idsByKey.get(key),
+                revealEmailByKey.get(key), revealPhoneByKey.get(key)));
         }
 
         for (Request r : reqs) {

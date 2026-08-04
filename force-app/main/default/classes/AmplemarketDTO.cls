@@ -58,10 +58,14 @@ public with sharing class AmplemarketDTO {
         'traffic_rank' => 'Traffic Rank',
         'size' => 'Size',
         'type' => 'Type',
-        'location' => 'Location',
-        'location_details.city' => 'Location: City',
-        'location_details.state' => 'Location: State',
-        'location_details.country' => 'Location: Country',
+        // Primary location from the `locations` array (falls back to the first
+        // entry when no location is flagged is_primary=true). Lets admins map a
+        // full postal address onto the Account's Billing/Shipping address fields.
+        'locations[is_primary=true].address' => 'Primary Location: Full Address',
+        'locations[is_primary=true].city' => 'Primary Location: City',
+        'locations[is_primary=true].state' => 'Primary Location: State',
+        'locations[is_primary=true].postal_code' => 'Primary Location: Postal Code',
+        'locations[is_primary=true].country' => 'Primary Location: Country',
         'total_funding' => 'Total Funding',
         'revenue' => 'Revenue',
         'latest_funding_stage' => 'Latest Funding Stage',

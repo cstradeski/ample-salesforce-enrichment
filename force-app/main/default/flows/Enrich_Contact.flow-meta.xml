@@ -5,10 +5,17 @@
     <environments>Default</environments>
     <interviewLabel>Enrich Contact {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Enrich Contact with Amplemarket</label>
+    <isTemplate>true</isTemplate>
     <processMetadataValues>
         <name>BuilderType</name>
         <value>
             <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
         </value>
     </processMetadataValues>
     <processType>Flow</processType>
@@ -17,7 +24,7 @@
         <locationX>176</locationX>
         <locationY>0</locationY>
         <connector>
-            <targetReference>Preview_Credits</targetReference>
+            <targetReference>Get_Reveal_Defaults</targetReference>
         </connector>
     </start>
     <status>Active</status>
@@ -29,10 +36,38 @@
         <isOutput>false</isOutput>
     </variables>
     <actionCalls>
+        <name>Get_Reveal_Defaults</name>
+        <label>Get Reveal Defaults</label>
+        <locationX>176</locationX>
+        <locationY>120</locationY>
+        <actionName>AmplemarketRevealDefaults</actionName>
+        <actionType>apex</actionType>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>recordId</name>
+            <value>
+                <elementReference>recordId</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>objectApiName</name>
+            <value>
+                <stringValue>Contact</stringValue>
+            </value>
+        </inputParameters>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+        <connector>
+            <targetReference>Reveal_Options</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Show_Fault</targetReference>
+        </faultConnector>
+    </actionCalls>
+    <actionCalls>
         <name>Preview_Credits</name>
         <label>Preview Credits</label>
         <locationX>176</locationX>
-        <locationY>120</locationY>
+        <locationY>360</locationY>
         <actionName>AmplemarketCreditPreview</actionName>
         <actionType>apex</actionType>
         <flowTransactionModel>CurrentTransaction</flowTransactionModel>
@@ -48,19 +83,32 @@
                 <stringValue>Contact</stringValue>
             </value>
         </inputParameters>
+        <inputParameters>
+            <name>revealEmail</name>
+            <value>
+                <elementReference>RevealEmailToggle.value</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>revealPhone</name>
+            <value>
+                <elementReference>RevealPhoneToggle.value</elementReference>
+            </value>
+        </inputParameters>
         <storeOutputAutomatically>true</storeOutputAutomatically>
         <connector>
             <targetReference>Show_Credit_Warning</targetReference>
         </connector>
         <faultConnector>
             <targetReference>Show_Fault</targetReference>
+            <isGoTo>true</isGoTo>
         </faultConnector>
     </actionCalls>
     <actionCalls>
         <name>Call_Enrichment</name>
         <label>Call Amplemarket Enrichment</label>
         <locationX>176</locationX>
-        <locationY>360</locationY>
+        <locationY>600</locationY>
         <actionName>AmplemarketEnrichInvocable</actionName>
         <actionType>apex</actionType>
         <flowTransactionModel>CurrentTransaction</flowTransactionModel>
@@ -76,19 +124,112 @@
                 <stringValue>Contact</stringValue>
             </value>
         </inputParameters>
+        <inputParameters>
+            <name>revealEmail</name>
+            <value>
+                <elementReference>RevealEmailToggle.value</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>revealPhone</name>
+            <value>
+                <elementReference>RevealPhoneToggle.value</elementReference>
+            </value>
+        </inputParameters>
         <storeOutputAutomatically>true</storeOutputAutomatically>
         <connector>
             <targetReference>Show_Result</targetReference>
         </connector>
         <faultConnector>
             <targetReference>Show_Fault</targetReference>
+            <isGoTo>true</isGoTo>
         </faultConnector>
     </actionCalls>
+    <screens>
+        <name>Reveal_Options</name>
+        <label>Reveal Options</label>
+        <locationX>176</locationX>
+        <locationY>240</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <fields>
+            <name>RevealInfo</name>
+            <fieldText>&lt;p&gt;Choose what to reveal for this record. These start from your Amplemarket Settings defaults; revealing email or phone can consume additional credits on a match.&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+        <fields>
+            <name>RevealToggleSection</name>
+            <fieldType>RegionContainer</fieldType>
+            <fields>
+                <name>RevealEmailColumn</name>
+                <fieldType>Region</fieldType>
+                <fields>
+                    <name>RevealEmailToggle</name>
+                    <extensionName>flowruntime:toggle</extensionName>
+                    <fieldType>ComponentInstance</fieldType>
+                    <inputParameters>
+                        <name>label</name>
+                        <value>
+                            <stringValue>Reveal Email</stringValue>
+                        </value>
+                    </inputParameters>
+                    <inputParameters>
+                        <name>value</name>
+                        <value>
+                            <elementReference>Get_Reveal_Defaults.revealEmailDefault</elementReference>
+                        </value>
+                    </inputParameters>
+                    <storeOutputAutomatically>true</storeOutputAutomatically>
+                </fields>
+                <inputParameters>
+                    <name>width</name>
+                    <value>
+                        <stringValue>6</stringValue>
+                    </value>
+                </inputParameters>
+            </fields>
+            <fields>
+                <name>RevealPhoneColumn</name>
+                <fieldType>Region</fieldType>
+                <fields>
+                    <name>RevealPhoneToggle</name>
+                    <extensionName>flowruntime:toggle</extensionName>
+                    <fieldType>ComponentInstance</fieldType>
+                    <inputParameters>
+                        <name>label</name>
+                        <value>
+                            <stringValue>Reveal Phone Number</stringValue>
+                        </value>
+                    </inputParameters>
+                    <inputParameters>
+                        <name>value</name>
+                        <value>
+                            <elementReference>Get_Reveal_Defaults.revealPhoneDefault</elementReference>
+                        </value>
+                    </inputParameters>
+                    <storeOutputAutomatically>true</storeOutputAutomatically>
+                </fields>
+                <inputParameters>
+                    <name>width</name>
+                    <value>
+                        <stringValue>6</stringValue>
+                    </value>
+                </inputParameters>
+            </fields>
+            <regionContainerType>SectionWithoutHeader</regionContainerType>
+        </fields>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+        <connector>
+            <targetReference>Preview_Credits</targetReference>
+        </connector>
+    </screens>
     <screens>
         <name>Show_Credit_Warning</name>
         <label>Confirm Credit Usage</label>
         <locationX>176</locationX>
-        <locationY>240</locationY>
+        <locationY>480</locationY>
         <allowBack>false</allowBack>
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
@@ -107,7 +248,7 @@
         <name>Show_Result</name>
         <label>Enrichment Complete</label>
         <locationX>176</locationX>
-        <locationY>480</locationY>
+        <locationY>720</locationY>
         <allowBack>false</allowBack>
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>

@@ -2,10 +2,19 @@ public with sharing class AmplemarketBatchEnrichQueueable implements Queueable, 
 
     private final String objectApiName;
     private final List<Id> recordIds;
+    private final Boolean revealEmailOverride;
+    private final Boolean revealPhoneOverride;
 
     public AmplemarketBatchEnrichQueueable(String objectApiName, List<Id> recordIds) {
+        this(objectApiName, recordIds, null, null);
+    }
+
+    public AmplemarketBatchEnrichQueueable(String objectApiName, List<Id> recordIds,
+            Boolean revealEmailOverride, Boolean revealPhoneOverride) {
         this.objectApiName = objectApiName;
         this.recordIds = recordIds;
+        this.revealEmailOverride = revealEmailOverride;
+        this.revealPhoneOverride = revealPhoneOverride;
     }
 
     public void execute(QueueableContext ctx) {
@@ -22,7 +31,7 @@ public with sharing class AmplemarketBatchEnrichQueueable implements Queueable, 
         }
 
         try {
-            AmplemarketEnrichmentService.enrichBatch(chunk, objectApiName);
+            AmplemarketEnrichmentService.enrichBatch(chunk, objectApiName, revealEmailOverride, revealPhoneOverride);
         } catch (Exception e) {
             // Last-resort fallback: log a single batch-level failure for any record we
             // couldn't process. Per-record errors are already logged inside enrichBatch.
@@ -37,7 +46,8 @@ public with sharing class AmplemarketBatchEnrichQueueable implements Queueable, 
         }
 
         if (!remainder.isEmpty() && !Test.isRunningTest()) {
-            System.enqueueJob(new AmplemarketBatchEnrichQueueable(objectApiName, remainder));
+            System.enqueueJob(new AmplemarketBatchEnrichQueueable(
+                objectApiName, remainder, revealEmailOverride, revealPhoneOverride));
         }
     }
 }

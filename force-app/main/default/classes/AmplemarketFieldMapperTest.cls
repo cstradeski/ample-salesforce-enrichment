@@ -13,6 +13,39 @@ private class AmplemarketFieldMapperTest {
     }
 
     @IsTest
+    static void readPathSelectsPrimaryLocationByPredicate() {
+        Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
+            '{"locations":['
+            + '{"address":"456 Broadway, New York, NY","is_primary":false,"city":"New York"},'
+            + '{"address":"123 Main St, San Francisco, CA","is_primary":true,"city":"San Francisco"}'
+            + ']}'
+        );
+        // Predicate picks the flagged element regardless of position.
+        System.assertEquals('123 Main St, San Francisco, CA',
+            AmplemarketFieldMapper.readPath(root, 'locations[is_primary=true].address'));
+        System.assertEquals('San Francisco',
+            AmplemarketFieldMapper.readPath(root, 'locations[is_primary=true].city'));
+    }
+
+    @IsTest
+    static void readPathPredicateFallsBackToFirstWhenNoMatch() {
+        // No location flagged primary → fall back to the first entry.
+        Map<String, Object> noMatch = (Map<String, Object>) JSON.deserializeUntyped(
+            '{"locations":[{"address":"456 Broadway","is_primary":false},'
+            + '{"address":"789 Market","is_primary":false}]}'
+        );
+        System.assertEquals('456 Broadway',
+            AmplemarketFieldMapper.readPath(noMatch, 'locations[is_primary=true].address'));
+
+        // Empty / missing array → null.
+        Map<String, Object> empty = (Map<String, Object>) JSON.deserializeUntyped('{"locations":[]}');
+        System.assertEquals(null,
+            AmplemarketFieldMapper.readPath(empty, 'locations[is_primary=true].address'));
+        System.assertEquals(null,
+            AmplemarketFieldMapper.readPath(new Map<String, Object>(), 'locations[is_primary=true].address'));
+    }
+
+    @IsTest
     static void applyOutputsWritesMappedFields() {
         Lead lead = new Lead(LastName = 'Smith', Company = 'Acme', Email = 'a@b.com');
         insert lead;
