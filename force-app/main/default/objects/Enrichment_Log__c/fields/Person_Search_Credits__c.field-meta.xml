@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Person_Search_Credits__c</fullName>
+    <label>Person Search Credits</label>
+    <description>Credits consumed by the person (Lead/Contact) match for this enrichment.</description>
+    <precision>10</precision>
+    <scale>2</scale>
+    <type>Number</type>
+</CustomField>

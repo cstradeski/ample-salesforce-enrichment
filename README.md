@@ -8,6 +8,7 @@ Salesforce DX project that enriches **Lead, Contact, and Account** records via t
 | Component | Purpose |
 | --- | --- |
 | `AmplemarketEnrichInvocable` | `@InvocableMethod` callable from screen flows; supports single (sync) and bulk (async via Queueable) modes |
+| `AmplemarketEnrichAsyncInvocable` | Second flow action for automated flows: publishes a platform event so the callout runs as a nominated integration user, and the triggering user needs no Amplemarket permissions |
 | `AmplemarketEnrichmentService` | Reads field mappings, calls `/people/find` or `/companies/find`, writes results back, logs every call |
 | `AmplemarketHttpClient` | Wrapper over `Http` that uses the `Amplemarket_API` Named Credential |
 | `Amplemarket_Mapping__c` | Custom object holding match-input + output-field mappings, per object — saved with regular DML from the LWC |

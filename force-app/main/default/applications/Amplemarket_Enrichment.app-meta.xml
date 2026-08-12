@@ -13,6 +13,8 @@
     <label>Amplemarket Enrichment</label>
     <navType>Standard</navType>
     <tabs>Amplemarket_Settings</tabs>
+    <tabs>Amplemarket_Auto_Enrichment</tabs>
+    <tabs>Amplemarket_Credit_Tracking</tabs>
     <tabs>Enrichment_Log__c</tabs>
     <uiType>Lightning</uiType>
 </CustomApplication>

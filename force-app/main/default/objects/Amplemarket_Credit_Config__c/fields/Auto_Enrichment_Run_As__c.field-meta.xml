@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Auto_Enrichment_Run_As__c</fullName>
+    <label>Automated Enrichment Runs As</label>
+    <description>Id of the user who enabled automated enrichment. The scheduled job performs callouts as this user, so this user must hold the Amplemarket permission set and External Credential access.</description>
+    <length>18</length>
+    <type>Text</type>
+</CustomField>

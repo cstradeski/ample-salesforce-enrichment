@@ -15,6 +15,14 @@
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>
+        <tab>Amplemarket_Auto_Enrichment</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>Amplemarket_Credit_Tracking</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
         <tab>Enrichment_Log__c</tab>
         <visibility>Visible</visibility>
     </tabSettings>
@@ -24,9 +32,30 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>AmplemarketCreditController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>AmplemarketCreditDigest</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>AmplemarketEnrichInvocable</apexClass>
         <enabled>true</enabled>
     </classAccesses>
+    <classAccesses>
+        <apexClass>AmplemarketEnrichAsyncInvocable</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>AmplemarketAsyncEnrichQueueable</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>AmplemarketEnrichRequestProcessor</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+
     <classAccesses>
         <apexClass>AmplemarketEnrichmentService</apexClass>
         <enabled>true</enabled>
@@ -70,6 +99,15 @@
     </objectPermissions>
     <objectPermissions>
         <object>Enrichment_Log_Field__c</object>
+        <allowCreate>true</allowCreate>
+        <allowRead>true</allowRead>
+        <allowEdit>true</allowEdit>
+        <allowDelete>true</allowDelete>
+        <viewAllRecords>true</viewAllRecords>
+        <modifyAllRecords>true</modifyAllRecords>
+    </objectPermissions>
+    <objectPermissions>
+        <object>Enrichment_Request__c</object>
         <allowCreate>true</allowCreate>
         <allowRead>true</allowRead>
         <allowEdit>true</allowEdit>
@@ -152,6 +190,56 @@
     </fieldPermissions>
     <fieldPermissions>
         <field>Enrichment_Log__c.Batch_Request_Id__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Person_Search_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Company_Search_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Email_Reveal_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Phone_Reveal_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Object_API_Name__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Reveal_Email__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Reveal_Phone__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Status__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Processed_At__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Error_Message__c</field>
         <readable>true</readable>
         <editable>true</editable>
     </fieldPermissions>

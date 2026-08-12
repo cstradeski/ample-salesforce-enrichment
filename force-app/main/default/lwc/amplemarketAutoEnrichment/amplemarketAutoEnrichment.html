@@ -1,0 +1,78 @@
+<template>
+    <lightning-card title="Auto-Enrichment Settings" icon-name="standard:flow">
+        <div slot="actions">
+            <lightning-button-icon icon-name="utility:refresh" alternative-text="Refresh"
+                title="Refresh" onclick={handleRefresh} class="slds-m-right_x-small">
+            </lightning-button-icon>
+            <lightning-button label="Save" variant="brand" onclick={handleSave} disabled={isSaving}>
+            </lightning-button>
+        </div>
+
+        <template if:true={isLoading}>
+            <div class="slds-p-around_medium">
+                <lightning-spinner alternative-text="Loading"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+
+                <p class="slds-text-color_weak slds-m-bottom_small">
+                    Lets automated flows enrich records even when the user who triggered them has no
+                    Amplemarket permissions. Flows queue work with the
+                    <strong>Enrich with Amplemarket (Async, No User Permissions)</strong> action, and this
+                    scheduled job performs the callouts. Because scheduled jobs run as the person who
+                    scheduled them, whoever saves here becomes the account used for every automated callout.
+                </p>
+
+                <div class="slds-box slds-box_small slds-m-bottom_medium">
+                    <div class="slds-grid slds-grid_align-spread slds-wrap slds-grid_vertical-align-center">
+                        <span class="slds-text-heading_small">Status</span>
+                        <lightning-badge label={statusLabel} variant={statusVariant}></lightning-badge>
+                    </div>
+                    <div class="slds-text-body_regular slds-m-top_xx-small">{runAsText}</div>
+                    <div class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                        {nextRunText}
+                    </div>
+                    <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-wrap slds-m-top_x-small">
+                        <span class="slds-text-body_small slds-text-color_weak">{queueText}</span>
+                        <lightning-button label="Run now" onclick={handleRunNow} disabled={isRunningNow}>
+                        </lightning-button>
+                    </div>
+                </div>
+
+                <template if:true={showTakeOverWarning}>
+                    <div class="slds-m-bottom_small">
+                        <lightning-badge label="Saving will switch the run-as account to you" variant="warning">
+                        </lightning-badge>
+                    </div>
+                </template>
+
+                <lightning-input type="toggle" label="Enable automated enrichment"
+                    message-toggle-active="Queued requests are processed on the interval below"
+                    message-toggle-inactive="Queued requests are not processed"
+                    checked={auto.enabled} onchange={handleEnabledChange}>
+                </lightning-input>
+
+                <div class="slds-m-top_small slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <lightning-combobox label="Check the queue" value={auto.interval}
+                        options={intervalOptions} onchange={handleIntervalChange}
+                        field-level-help="A sub-hourly cadence schedules one job per offset — every 15 minutes creates four scheduled jobs.">
+                    </lightning-combobox>
+                </div>
+
+                <template if:true={hasFailures}>
+                    <p class="slds-text-body_small slds-m-top_small slds-text-color_error">
+                        Some requests failed. Open the <strong>Enrichment Request</strong> records to see why —
+                        the most common cause is the run-as account lacking Amplemarket access or the API token.
+                    </p>
+                </template>
+
+                <p class="slds-text-body_small slds-text-color_weak slds-m-top_small">
+                    Save this page as an admin who holds the Amplemarket Admin or Amplemarket User permission
+                    set, otherwise the automated callouts will fail.
+                </p>
+            </div>
+        </template>
+    </lightning-card>
+</template>

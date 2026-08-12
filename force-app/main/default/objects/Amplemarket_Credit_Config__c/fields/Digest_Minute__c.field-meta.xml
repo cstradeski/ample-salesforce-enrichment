@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Digest_Minute__c</fullName>
+    <label>Digest Minute</label>
+    <description>Minute of the hour (0-59) the weekly digest is sent.</description>
+    <precision>2</precision>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

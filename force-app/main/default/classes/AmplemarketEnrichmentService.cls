@@ -243,6 +243,18 @@ public with sharing class AmplemarketEnrichmentService {
         if (revealEmailOverride != null) revealEmail = revealEmailOverride;
         if (revealPhoneOverride != null) revealPhone = revealPhoneOverride;
 
+        // Weekly-limit enforcement. Blocks the call if the base search is over limit;
+        // suppresses individual reveals that are over limit. No-op unless Enforce Limits is on.
+        AmplemarketCreditMonitor.Decision gate = AmplemarketCreditMonitor.preCheck(objApi, revealEmail, revealPhone);
+        if (gate.blocked) {
+            result.message = 'Weekly ' + gate.blockedReason + ' credit limit reached — enrichment blocked.';
+            result.appliedFieldsHtml = errorHtml(result.message);
+            result.logId = writeLog(recordId, objApi, null, 'Error', null, null, result.message, null, started);
+            return result;
+        }
+        revealEmail = gate.revealEmail;
+        revealPhone = gate.revealPhone;
+
         if (queryParams.isEmpty()) {
             result.message = 'Source record has no values for any configured match input.';
             result.appliedFieldsHtml = errorHtml(result.message);
@@ -317,7 +329,8 @@ public with sharing class AmplemarketEnrichmentService {
             return result;
         }
 
-        Decimal credits = estimateCredits(parsed,
+        CreditBreakdown credits = estimateCredits(parsed,
+            AmplemarketDTO.isPersonObject(objApi),
             queryParams.containsKey('reveal_email'),
             queryParams.containsKey('reveal_phone_numbers'));
         String status = mapRes.warnings.isEmpty() && mapRes.fieldsApplied > 0
@@ -327,11 +340,13 @@ public with sharing class AmplemarketEnrichmentService {
             (mapRes.warnings.isEmpty() ? '' : '; warnings: ' + String.join(mapRes.warnings, '; '));
         result.success = mapRes.fieldsApplied > 0;
         result.message = msg;
-        result.creditsUsed = credits;
-        result.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes, credits);
+        result.creditsUsed = credits.total();
+        result.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes, credits.total());
         result.logId = writeLog(recordId, objApi, endpoint, status,
             JSON.serialize(queryParams), http.body, msg, credits, started);
         writeFieldOutcomes(result.logId, mapRes.outcomes);
+        // Evaluate weekly limits for alerts (post-spend). Never breaks enrichment.
+        AmplemarketCreditMonitor.recordAndNotify();
         return result;
     }
 
@@ -408,7 +423,13 @@ public with sharing class AmplemarketEnrichmentService {
         List<Map<String, Object>> parsedByIdx = new List<Map<String, Object>>();
         List<SObject> toUpdateByIdx = new List<SObject>();
         List<AmplemarketFieldMapper.FieldMapResult> mapResByIdx = new List<AmplemarketFieldMapper.FieldMapResult>();
-        List<Decimal> creditsByIdx = new List<Decimal>();
+        List<CreditBreakdown> creditsByIdx = new List<CreditBreakdown>();
+
+        // Weekly-limit enforcement inputs: read config + current usage once for the batch.
+        Amplemarket_Credit_Config__c creditCfg = AmplemarketCreditMonitor.readConfig();
+        AmplemarketCreditMonitor.Usage creditUsage =
+            AmplemarketCreditMonitor.enforcementActive(creditCfg)
+                ? AmplemarketCreditMonitor.snapshot(creditCfg) : null;
 
         // Phase 1: per-record callout. NO DML in this phase.
         for (Integer i = 0; i < recordIds.size(); i++) {
@@ -420,7 +441,7 @@ public with sharing class AmplemarketEnrichmentService {
             parsedByIdx.add(null);
             toUpdateByIdx.add(null);
             mapResByIdx.add(null);
-            creditsByIdx.add(0);
+            creditsByIdx.add(null);
 
             SObject record = sourceById.get(recId);
             if (record == null) {
@@ -447,6 +468,16 @@ public with sharing class AmplemarketEnrichmentService {
             // Flow overrides win over the settings default (null = keep default).
             if (revealEmailOverride != null) revealEmail = revealEmailOverride;
             if (revealPhoneOverride != null) revealPhone = revealPhoneOverride;
+
+            // Weekly-limit enforcement (shared config/usage for the batch; no-op unless Enforce Limits is on).
+            AmplemarketCreditMonitor.Decision gate =
+                AmplemarketCreditMonitor.preCheck(objApi, revealEmail, revealPhone, creditUsage, creditCfg);
+            if (gate.blocked) {
+                errorByIdx[i] = 'Weekly ' + gate.blockedReason + ' credit limit reached — enrichment blocked.';
+                continue;
+            }
+            revealEmail = gate.revealEmail;
+            revealPhone = gate.revealPhone;
 
             if (queryParams.isEmpty()) {
                 errorByIdx[i] = 'Source record has no values for any configured match input.';
@@ -506,6 +537,7 @@ public with sharing class AmplemarketEnrichmentService {
             toUpdateByIdx[i] = sob;
             mapResByIdx[i] = mapRes;
             creditsByIdx[i] = estimateCredits(parsed,
+                AmplemarketDTO.isPersonObject(objApi),
                 queryParamsByIdx[i].containsKey('reveal_email'),
                 queryParamsByIdx[i].containsKey('reveal_phone_numbers'));
 
@@ -551,8 +583,9 @@ public with sharing class AmplemarketEnrichmentService {
                 r.success = mapRes.fieldsApplied > 0;
                 r.message = msg;
                 r.fieldsApplied = mapRes.fieldsApplied;
-                r.creditsUsed = creditsByIdx[i];
-                r.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes, creditsByIdx[i]);
+                r.creditsUsed = creditsByIdx[i] == null ? 0 : creditsByIdx[i].total();
+                r.appliedFieldsHtml = buildAppliedFieldsHtml(objApi, mapRes,
+                    creditsByIdx[i] == null ? 0 : creditsByIdx[i].total());
                 logs.add(buildLog(recordIds[i], objApi, endpointByIdx[i], status,
                     reqJson, resBody, msg, creditsByIdx[i], started));
             }
@@ -580,12 +613,15 @@ public with sharing class AmplemarketEnrichmentService {
         }
         if (!outcomeRows.isEmpty()) insert outcomeRows;
 
+        // Evaluate weekly limits for alerts once for the whole batch. Never breaks enrichment.
+        AmplemarketCreditMonitor.recordAndNotify();
+
         return results;
     }
 
     private static Enrichment_Log__c buildLog(Id recordId, String objectApiName, String endpoint, String status,
             String requestPayload, String responsePayload, String errorMessage,
-            Decimal creditsUsed, Datetime started) {
+            CreditBreakdown breakdown, Datetime started) {
         return new Enrichment_Log__c(
             Record_Id__c = recordId,
             Object_API_Name__c = objectApiName,
@@ -594,7 +630,11 @@ public with sharing class AmplemarketEnrichmentService {
             Request_Payload__c = truncate(requestPayload, LOG_PAYLOAD_TRUNCATE),
             Response_Payload__c = truncate(responsePayload, 130000),
             Error_Message__c = truncate(errorMessage, LOG_PAYLOAD_TRUNCATE),
-            Credits_Used__c = creditsUsed,
+            Credits_Used__c = breakdown == null ? null : breakdown.total(),
+            Person_Search_Credits__c = breakdown == null ? null : breakdown.personSearch,
+            Company_Search_Credits__c = breakdown == null ? null : breakdown.companySearch,
+            Email_Reveal_Credits__c = breakdown == null ? null : breakdown.emailReveal,
+            Phone_Reveal_Credits__c = breakdown == null ? null : breakdown.phoneReveal,
             Run_Timestamp__c = started == null ? Datetime.now() : started
         );
     }
@@ -741,36 +781,49 @@ public with sharing class AmplemarketEnrichmentService {
     }
 
     /**
-     * Estimate credits charged based on what was actually sent and what came back.
-     * Use the *sent* booleans (queryParams.containsKey('reveal_email') etc.) — not the
-     * user-config booleans — because the service may suppress reveal_email when email
-     * is already a match input, in which case Amplemarket doesn't bill for it.
+     * Per-category credit breakdown for a single enrichment. total() feeds the
+     * legacy Credits_Used__c; the four category figures feed the credit dashboard.
      */
-    private static Decimal estimateCredits(Map<String, Object> parsed, Boolean sentRevealEmail, Boolean sentRevealPhone) {
-        Decimal total = 0;
-        if (parsed != null && parsed.get('id') != null) total += 0.5;
-        if (sentRevealEmail && parsed != null && parsed.get('email') != null) total += 1;
+    public class CreditBreakdown {
+        public Decimal personSearch = 0;
+        public Decimal companySearch = 0;
+        public Decimal emailReveal = 0;
+        public Decimal phoneReveal = 0;
+        public Decimal total() {
+            return (personSearch == null ? 0 : personSearch)
+                 + (companySearch == null ? 0 : companySearch)
+                 + (emailReveal == null ? 0 : emailReveal)
+                 + (phoneReveal == null ? 0 : phoneReveal);
+        }
+    }
+
+    /**
+     * Estimate credits charged, split by category, based on what was actually sent
+     * and what came back. Use the *sent* booleans (queryParams.containsKey('reveal_email')
+     * etc.) — not the user-config booleans — because the service may suppress reveal_email
+     * when email is already a match input, in which case Amplemarket doesn't bill for it.
+     * The 0.5 match credit is attributed to person vs company search by isPerson.
+     */
+    @TestVisible
+    private static CreditBreakdown estimateCredits(Map<String, Object> parsed, Boolean isPerson,
+            Boolean sentRevealEmail, Boolean sentRevealPhone) {
+        CreditBreakdown b = new CreditBreakdown();
+        if (parsed != null && parsed.get('id') != null) {
+            if (isPerson) b.personSearch = 0.5; else b.companySearch = 0.5;
+        }
+        if (sentRevealEmail && parsed != null && parsed.get('email') != null) b.emailReveal = 1;
         if (sentRevealPhone && parsed != null) {
             Object pn = parsed.get('phone_numbers');
-            if (pn instanceof List<Object> && !((List<Object>) pn).isEmpty()) total += 1;
+            if (pn instanceof List<Object> && !((List<Object>) pn).isEmpty()) b.phoneReveal = 1;
         }
-        return total;
+        return b;
     }
 
     public static Id writeLog(Id recordId, String objectApiName, String endpoint, String status,
             String requestPayload, String responsePayload, String errorMessage,
-            Decimal creditsUsed, Datetime started) {
-        Enrichment_Log__c log = new Enrichment_Log__c(
-            Record_Id__c = recordId,
-            Object_API_Name__c = objectApiName,
-            Endpoint__c = endpoint,
-            Status__c = status,
-            Request_Payload__c = truncate(requestPayload, LOG_PAYLOAD_TRUNCATE),
-            Response_Payload__c = truncate(responsePayload, 130000),
-            Error_Message__c = truncate(errorMessage, LOG_PAYLOAD_TRUNCATE),
-            Credits_Used__c = creditsUsed,
-            Run_Timestamp__c = started == null ? Datetime.now() : started
-        );
+            CreditBreakdown breakdown, Datetime started) {
+        Enrichment_Log__c log = buildLog(recordId, objectApiName, endpoint, status,
+            requestPayload, responsePayload, errorMessage, breakdown, started);
         insert log;
         return log.Id;
     }

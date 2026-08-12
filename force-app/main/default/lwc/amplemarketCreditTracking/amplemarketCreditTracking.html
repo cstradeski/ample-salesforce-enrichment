@@ -1,0 +1,190 @@
+<template>
+    <lightning-card title="Amplemarket Credit Tracking" icon-name="standard:coaching">
+        <div slot="actions">
+            <lightning-button
+                label="Save"
+                variant="brand"
+                onclick={handleSave}
+                disabled={isSaving}>
+            </lightning-button>
+        </div>
+
+        <template if:true={isLoading}>
+            <div class="slds-p-around_medium">
+                <lightning-spinner alternative-text="Loading"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+                <div class="slds-box slds-box_small slds-m-bottom_medium">
+                    <div class="slds-grid slds-grid_align-spread slds-wrap">
+                        <span class="slds-text-heading_small">Annual Contract</span>
+                        <template if:true={annual.over}>
+                            <lightning-badge label="Allowance reached" variant="error"></lightning-badge>
+                        </template>
+                    </div>
+                    <template if:true={annual.configured}>
+                        <div class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                            Period {annual.start} to {annual.end}
+                        </div>
+                    </template>
+                    <div class="slds-text-body_regular slds-m-vertical_xx-small">
+                        Used this period: <strong>{annual.text}</strong>
+                    </div>
+                    <div class="track">
+                        <div class={annual.barClass} style={annual.barStyle}></div>
+                    </div>
+                    <div class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                        {remainingText}
+                    </div>
+                    <template if:false={annual.configured}>
+                        <div class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                            Set a contract start and end date below to track annual consumption.
+                            Consumption restarts at zero when the period rolls over.
+                        </div>
+                    </template>
+                </div>
+
+                <p class="slds-text-color_weak slds-m-bottom_small">
+                    Weekly consumption since Monday ({weekStart}). Credits are only charged on successful matches.
+                </p>
+
+                <div class="slds-grid slds-wrap slds-gutters">
+                    <template for:each={rows} for:item="r">
+                        <div key={r.key} class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-p-vertical_x-small">
+                            <div class="slds-box slds-box_x-small">
+                                <div class="slds-grid slds-grid_align-spread">
+                                    <span class="slds-text-heading_small">{r.label}</span>
+                                    <template if:true={r.over}>
+                                        <lightning-badge label="Limit reached" variant="error"></lightning-badge>
+                                    </template>
+                                </div>
+                                <div class="slds-text-body_regular slds-m-vertical_xx-small">
+                                    This week: <strong>{r.limitText}</strong>
+                                </div>
+                                <div class="track">
+                                    <div class={r.barClass} style={r.barStyle}></div>
+                                </div>
+                                <div class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                                    All time: {r.allTimeUsed} credits
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <h2 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">Annual Contract</h2>
+                <div class="slds-grid slds-wrap slds-gutters">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <lightning-input type="number" label="Total yearly credits" min="0" step="0.5"
+                            value={annual.allowance} onchange={handleAnnualAllowanceChange}>
+                        </lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <lightning-input type="date" label="Contract start date"
+                            value={annual.start} onchange={handleContractStartChange}>
+                        </lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <lightning-input type="date" label="Contract end date"
+                            value={annual.end} onchange={handleContractEndChange}>
+                        </lightning-input>
+                    </div>
+                </div>
+                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                    When the end date passes, the period advances automatically and consumption restarts at zero.
+                </p>
+
+                <h2 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">Weekly Limits</h2>
+                <div class="slds-grid slds-wrap slds-gutters">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                        <lightning-input type="number" label="Person Search" min="0" step="0.5"
+                            data-key="personSearch" value={personLimit} onchange={handleLimitChange}>
+                        </lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                        <lightning-input type="number" label="Company Search" min="0" step="0.5"
+                            data-key="companySearch" value={companyLimit} onchange={handleLimitChange}>
+                        </lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                        <lightning-input type="number" label="Email Reveals" min="0" step="0.5"
+                            data-key="emailReveal" value={emailLimit} onchange={handleLimitChange}>
+                        </lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                        <lightning-input type="number" label="Phone Reveals" min="0" step="0.5"
+                            data-key="phoneReveal" value={phoneLimit} onchange={handleLimitChange}>
+                        </lightning-input>
+                    </div>
+                </div>
+                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">
+                    Leave blank or 0 for no limit.
+                </p>
+
+                <div class="slds-m-top_medium">
+                    <lightning-input type="toggle" label="Enforce limits"
+                        message-toggle-active="Enrichment is blocked when a category reaches its weekly limit"
+                        message-toggle-inactive="Limits only trigger alerts; enrichment continues"
+                        checked={enforceLimits} onchange={handleEnforceChange}>
+                    </lightning-input>
+                </div>
+
+                <div class="slds-m-top_small slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <lightning-combobox
+                        label="Alert recipient"
+                        placeholder="Select a user"
+                        value={notifyUserId}
+                        options={userOptions}
+                        onchange={handleNotifyChange}
+                        field-level-help="This user receives an in-app and email alert when a weekly limit is reached.">
+                    </lightning-combobox>
+                </div>
+
+                <h2 class="slds-text-heading_small slds-m-top_medium slds-m-bottom_x-small">Weekly Digest</h2>
+                <lightning-input type="toggle" label="Send a weekly usage digest"
+                    message-toggle-active="A usage summary is emailed on the schedule below"
+                    message-toggle-inactive="No digest is sent"
+                    checked={digest.enabled} onchange={handleDigestEnabledChange}>
+                </lightning-input>
+
+                <div class="slds-m-top_small">
+                    <lightning-input type="text" label="Send to"
+                        placeholder="ops@example.com, finance@example.com"
+                        value={digest.recipients} onchange={handleDigestRecipientsChange}
+                        field-level-help="Comma-separated email addresses. Recipients do not need to be Salesforce users.">
+                    </lightning-input>
+                </div>
+
+                <div class="slds-grid slds-wrap slds-gutters slds-m-top_x-small">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <lightning-combobox label="Day" value={digest.dayOfWeek}
+                            options={dayOptions} onchange={handleDigestDayChange}>
+                        </lightning-combobox>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                        <lightning-input type="number" label="Hour (0-23)" min="0" max="23" step="1"
+                            value={digest.hour} onchange={handleDigestHourChange}>
+                        </lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                        <lightning-input type="number" label="Minute" min="0" max="59" step="1"
+                            value={digest.minute} onchange={handleDigestMinuteChange}>
+                        </lightning-input>
+                    </div>
+                </div>
+
+                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-wrap slds-m-top_x-small">
+                    <p class="slds-text-body_small slds-text-color_weak">
+                        {digestScheduleText} The digest reports the previous completed week (Monday&ndash;Sunday).
+                        Times use the timezone of whoever saves the schedule.
+                    </p>
+                    <lightning-button label="Send test now" onclick={handleSendTest}
+                        disabled={isSendingTest} class="slds-m-left_x-small">
+                    </lightning-button>
+                </div>
+            </div>
+        </template>
+    </lightning-card>
+</template>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Phone_Reveal_Limit__c</fullName>
+    <label>Phone Reveal Weekly Limit</label>
+    <description>Weekly credit limit for phone reveals. Blank or zero means no limit.</description>
+    <precision>10</precision>
+    <scale>2</scale>
+    <type>Number</type>
+</CustomField>

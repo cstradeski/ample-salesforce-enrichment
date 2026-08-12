@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Annual_Notified_Period__c</fullName>
+    <label>Annual Notified Period</label>
+    <description>Contract start date of the most recent annual-allowance alert, used to send at most one alert per contract period.</description>
+    <type>Date</type>
+</CustomField>

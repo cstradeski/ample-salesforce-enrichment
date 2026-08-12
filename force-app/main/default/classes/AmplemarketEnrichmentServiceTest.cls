@@ -260,6 +260,49 @@ private class AmplemarketEnrichmentServiceTest {
 
         System.assert(res.success, res.message);
         System.assertEquals(250, [SELECT NumberOfEmployees FROM Account WHERE Id = :a.Id].NumberOfEmployees);
+
+        // Company match credit lands in Company_Search_Credits__c, not Person_Search.
+        Enrichment_Log__c log = [
+            SELECT Person_Search_Credits__c, Company_Search_Credits__c,
+                   Email_Reveal_Credits__c, Phone_Reveal_Credits__c, Credits_Used__c
+            FROM Enrichment_Log__c WHERE Id = :res.logId];
+        System.assertEquals(0.5, log.Company_Search_Credits__c);
+        System.assertEquals(0, log.Person_Search_Credits__c);
+        System.assertEquals(0.5, log.Credits_Used__c);
+    }
+
+    @IsTest
+    static void breakdownFieldsWrittenForPersonWithReveals() {
+        // LinkedIn match input (email not a match key), reveals forced on via override,
+        // response returns email + phone, so all three person categories bill.
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Website = 'https://linkedin.com/in/jane');
+        insert l;
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Match Input',
+                Amplemarket_Field__c = 'linkedin_url', Salesforce_Field__c = 'Website', Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Lead', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'title', Salesforce_Field__c = 'Title', Is_Active__c = true)
+        };
+        Test.setMock(HttpCalloutMock.class, new PersonMock(200,
+            '{"id":"abc","title":"VP","email":"a@b.com","phone_numbers":[{"number":"+15551234"}]}'));
+
+        Test.startTest();
+        AmplemarketEnrichmentService.ServiceResult res =
+            AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead', true, true);
+        Test.stopTest();
+
+        Enrichment_Log__c log = [
+            SELECT Person_Search_Credits__c, Company_Search_Credits__c,
+                   Email_Reveal_Credits__c, Phone_Reveal_Credits__c, Credits_Used__c
+            FROM Enrichment_Log__c WHERE Id = :res.logId];
+        System.assertEquals(0.5, log.Person_Search_Credits__c);
+        System.assertEquals(0, log.Company_Search_Credits__c);
+        System.assertEquals(1, log.Email_Reveal_Credits__c);
+        System.assertEquals(1, log.Phone_Reveal_Credits__c);
+        System.assertEquals(2.5, log.Credits_Used__c);
+        System.assertEquals(2.5, res.creditsUsed);
     }
 
     @IsTest

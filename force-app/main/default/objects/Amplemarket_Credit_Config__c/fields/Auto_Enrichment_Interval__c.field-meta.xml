@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Auto_Enrichment_Interval__c</fullName>
+    <label>Automated Enrichment Interval (Minutes)</label>
+    <description>How often the automated enrichment job runs: 5, 10, 15, 20, 30, or 60 minutes.</description>
+    <precision>3</precision>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

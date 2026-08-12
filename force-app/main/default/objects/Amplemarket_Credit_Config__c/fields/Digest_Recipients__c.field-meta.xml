@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Digest_Recipients__c</fullName>
+    <label>Digest Recipients</label>
+    <description>Comma-separated email addresses that receive the weekly credit digest. Any address may be used; recipients do not need to be Salesforce users.</description>
+    <length>255</length>
+    <type>Text</type>
+</CustomField>

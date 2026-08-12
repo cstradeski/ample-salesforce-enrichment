@@ -75,6 +75,34 @@ If your org has the old `Amplemarket_Enrichment_Mapping__mdt` Custom Metadata Ty
 
 The new project doesn't ship this CMDT, so it will linger as orphan metadata in your org until you delete it manually.
 
+## 4b. (Optional) Enable permission-free auto-enrichment
+
+The package ships a second flow action, **Enrich with Amplemarket (Async, No User Permissions)**, for automated flows (record-triggered / scheduled / autolaunched) where the user who triggers the flow may not hold any Amplemarket permissions.
+
+**How it differs from the standard action**
+
+| | Enrich with Amplemarket | Enrich with Amplemarket (Async) |
+| --- | --- | --- |
+| Callout runs as | The user running the flow | The admin who enabled automation |
+| Triggering user needs perm set + External Credential | **Yes** | **No** |
+| Timing | Synchronous — returns field-level results | Asynchronous — returns "queued" |
+| Best for | Screen flows / quick actions | Record-triggered & automated flows |
+
+Salesforce blocks a Named Credential callout when the *running user* lacks access to the External Credential principal, and no Apex setting overrides that. This action sidesteps it by writing an **Enrichment Request** row; a scheduled job drains the queue and does the callouts. Scheduled Apex runs as the user who scheduled it, so *your* Amplemarket access is what gets used.
+
+**Setup — all in the UI, no CLI required.**
+
+1. App Launcher → **Amplemarket Enrichment** → **Amplemarket Credit Tracking** tab
+2. Scroll to **Automated Enrichment**
+3. Turn on **Enable automated enrichment**, choose how often the queue is checked (5, 10, 15, 20, 30 or 60 minutes), and click **Save**
+4. The status line confirms who it runs as and when the next run is. Use **Run now** to drain the queue immediately instead of waiting.
+
+Whoever clicks Save becomes the run-as user, so **save it as an admin who holds the Amplemarket Admin or Amplemarket User permission set**. If someone else later re-saves, a warning badge appears first, and the run-as user switches to them.
+
+Then, in your record-triggered flow, add the **Enrich with Amplemarket (Async, No User Permissions)** Apex action and pass the record Id. Leave the reveal inputs blank to use your Settings defaults, or set them to override per run.
+
+Results appear on the **Enrichment Log**; each queued item is tracked on the **Enrichment Request** object (`Pending` → `Processing` → `Complete`/`Failed`).
+
 ## 5. Verify
 
 - Open a Lead with a real corporate email, click **Enrich with Amplemarket**, walk through the screen flow, confirm: mapped output fields are populated and an `Enrichment_Log__c` row exists with `Status = Success`.
@@ -88,3 +116,6 @@ The new project doesn't ship this CMDT, so it will linger as orphan metadata in 
 | `No active match-input mappings configured for X` log | The Settings tab has no `Match Input` rows for that object yet |
 | Output fields don't update | The `Output Field` mapping is inactive, the Salesforce field is read-only/formula, or the response did not contain that path |
 | LWC says *Read-only* | The user lacks the `Manage_Amplemarket_Settings` custom permission (granted via Amplemarket Admin perm set) |
+| Async requests stay *Pending* | Automated enrichment is switched off, or its scheduled jobs were aborted. Re-save on the Credit Tracking tab |
+| Enrichment Requests end as *Failed* with an external-credential error | The run-as user lacks the Amplemarket perm set / External Credential access. Have an admin who has it re-save Automated Enrichment |
+| Apex deployment fails with *…deployments with Apex jobs* | The digest or automation jobs are scheduled. Turn them off before deploying, or enable "Allow deployments of components when corresponding Apex jobs are pending" in Setup → Deployment Settings |

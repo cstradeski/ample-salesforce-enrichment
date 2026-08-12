@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Contract_Start_Date__c</fullName>
+    <label>Contract Start Date</label>
+    <description>First day of the current Amplemarket contract period. Consumption against the annual allowance is counted from this date.</description>
+    <type>Date</type>
+</CustomField>

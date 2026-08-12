@@ -3,14 +3,14 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>ample:amplemarketSettings</componentName>
-                <identifier>amplemarketSettings1</identifier>
+                <componentName>ample:amplemarketAutoEnrichment</componentName>
+                <identifier>amplemarketAutoEnrichment1</identifier>
             </componentInstance>
         </itemInstances>
         <name>main</name>
         <type>Region</type>
     </flexiPageRegions>
-    <masterLabel>Amplemarket Mappings Page</masterLabel>
+    <masterLabel>Auto-Enrichment Settings Page</masterLabel>
     <template>
         <name>flexipage:defaultAppHomeTemplate</name>
     </template>

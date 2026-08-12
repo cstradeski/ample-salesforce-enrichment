@@ -10,6 +10,19 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>AmplemarketEnrichAsyncInvocable</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>AmplemarketAsyncEnrichQueueable</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>AmplemarketEnrichRequestProcessor</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+
+    <classAccesses>
         <apexClass>AmplemarketEnrichmentService</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -55,6 +68,15 @@
         <allowCreate>true</allowCreate>
         <allowRead>true</allowRead>
         <allowEdit>false</allowEdit>
+        <allowDelete>false</allowDelete>
+        <viewAllRecords>false</viewAllRecords>
+        <modifyAllRecords>false</modifyAllRecords>
+    </objectPermissions>
+    <objectPermissions>
+        <object>Enrichment_Request__c</object>
+        <allowCreate>true</allowCreate>
+        <allowRead>true</allowRead>
+        <allowEdit>true</allowEdit>
         <allowDelete>false</allowDelete>
         <viewAllRecords>false</viewAllRecords>
         <modifyAllRecords>false</modifyAllRecords>
@@ -134,6 +156,56 @@
     </fieldPermissions>
     <fieldPermissions>
         <field>Enrichment_Log__c.Batch_Request_Id__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Person_Search_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Company_Search_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Email_Reveal_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Log__c.Phone_Reveal_Credits__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Object_API_Name__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Reveal_Email__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Reveal_Phone__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Status__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Processed_At__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Enrichment_Request__c.Error_Message__c</field>
         <readable>true</readable>
         <editable>true</editable>
     </fieldPermissions>

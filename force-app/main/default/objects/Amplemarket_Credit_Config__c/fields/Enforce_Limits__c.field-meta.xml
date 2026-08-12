@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Enforce_Limits__c</fullName>
+    <label>Enforce Limits</label>
+    <description>When enabled, enrichment of a category is blocked once its weekly limit is reached. When disabled, limits only trigger alerts.</description>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

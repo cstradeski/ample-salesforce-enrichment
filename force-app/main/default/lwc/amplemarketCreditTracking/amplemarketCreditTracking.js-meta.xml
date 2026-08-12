@@ -2,8 +2,8 @@
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>60.0</apiVersion>
     <isExposed>true</isExposed>
-    <masterLabel>Amplemarket Field Mappings</masterLabel>
-    <description>Configure which Salesforce fields supply match inputs and which Amplemarket response fields write back to records.</description>
+    <masterLabel>Amplemarket Credit Tracking</masterLabel>
+    <description>Weekly Amplemarket credit consumption by category, with per-category limits and alerts.</description>
     <targets>
         <target>lightning__AppPage</target>
         <target>lightning__HomePage</target>

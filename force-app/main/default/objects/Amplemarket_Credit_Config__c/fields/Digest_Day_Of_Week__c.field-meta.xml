@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Digest_Day_Of_Week__c</fullName>
+    <label>Digest Day Of Week</label>
+    <description>Day the weekly digest is sent, as a cron day-of-week token (MON, TUE, WED, THU, FRI, SAT, SUN).</description>
+    <length>3</length>
+    <type>Text</type>
+</CustomField>

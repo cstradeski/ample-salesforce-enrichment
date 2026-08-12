@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Digest_Hour__c</fullName>
+    <label>Digest Hour</label>
+    <description>Hour of day (0-23) the weekly digest is sent, in the timezone of the user who saved the schedule.</description>
+    <precision>2</precision>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>
