@@ -64,7 +64,8 @@ private class AmplemarketEnrichmentServiceTest {
         Lead l = new Lead(LastName = 'Doe', Company = 'Acme', Email = 'jane@acme.com');
         insert l;
         seedLeadMappings();
-        Test.setMock(HttpCalloutMock.class, new PersonMock(404, '{"error":"not_found"}'));
+        // 401 rather than 404 — a 404 now means "no match", which is not an error.
+        Test.setMock(HttpCalloutMock.class, new PersonMock(401, '{"error":"unauthorized"}'));
 
         Test.startTest();
         AmplemarketEnrichmentService.ServiceResult res = AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
@@ -72,6 +73,107 @@ private class AmplemarketEnrichmentServiceTest {
 
         System.assert(!res.success);
         System.assertEquals(1, [SELECT COUNT() FROM Enrichment_Log__c WHERE Status__c = 'Error']);
+    }
+
+    private static final String NOT_FOUND_BODY =
+        '{"_errors":[{"code":"company_not_found","title":"Company Not Found",'
+        + '"detail":"A matching company was not found in our database",'
+        + '"source":{"pointer":"/linkedin_url"}}],"object":"error"}';
+
+    @IsTest
+    static void companyNotFoundIsRecordedAsNoMatchNotError() {
+        Account a = new Account(Name = 'Acme', Website = 'acme.com');
+        insert a;
+        insert new List<Amplemarket_Mapping__c>{
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Account', Mapping_Type__c = 'Match Input',
+                Amplemarket_Field__c = 'domain', Salesforce_Field__c = 'Website', Is_Active__c = true),
+            new Amplemarket_Mapping__c(
+                Object_API_Name__c = 'Account', Mapping_Type__c = 'Output Field',
+                Amplemarket_Field__c = 'estimated_number_of_employees',
+                Salesforce_Field__c = 'NumberOfEmployees', Is_Active__c = true)
+        };
+        Test.setMock(HttpCalloutMock.class, new PersonMock(404, NOT_FOUND_BODY));
+
+        Test.startTest();
+        AmplemarketEnrichmentService.ServiceResult res =
+            AmplemarketEnrichmentService.enrichSingle(a.Id, 'Account');
+        Test.stopTest();
+
+        System.assertEquals(false, res.success);
+        System.assertEquals(0, res.creditsUsed, 'A miss must not bill credits');
+        System.assert(res.message.contains('not found'), res.message);
+
+        Enrichment_Log__c log = [
+            SELECT Status__c, Credits_Used__c, Company_Search_Credits__c
+            FROM Enrichment_Log__c WHERE Id = :res.logId];
+        System.assertEquals('No Match', log.Status__c, 'A 404 miss is No Match, not Error');
+        System.assertEquals(null, log.Credits_Used__c);
+        System.assert(res.appliedFieldsHtml.contains('No matching company'), res.appliedFieldsHtml);
+        // The API's own reason is surfaced to the user.
+        System.assert(res.appliedFieldsHtml.contains('was not found in our database'),
+            res.appliedFieldsHtml);
+    }
+
+    @IsTest
+    static void personNotFoundIsAlsoNoMatch() {
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Email = 'nobody@nowhere.com');
+        insert l;
+        seedLeadMappings();
+        Test.setMock(HttpCalloutMock.class, new PersonMock(404,
+            '{"_errors":[{"code":"person_not_found","title":"Person Not Found"}],"object":"error"}'));
+
+        Test.startTest();
+        AmplemarketEnrichmentService.ServiceResult res =
+            AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
+        Test.stopTest();
+
+        System.assertEquals('No Match',
+            [SELECT Status__c FROM Enrichment_Log__c WHERE Id = :res.logId].Status__c);
+        System.assert(res.appliedFieldsHtml.contains('No matching person'), res.appliedFieldsHtml);
+    }
+
+    @IsTest
+    static void batchNotFoundIsNoMatchPerRecord() {
+        List<Lead> leads = new List<Lead>{
+            new Lead(LastName = 'A', Company = 'C', Email = 'a@b.com'),
+            new Lead(LastName = 'B', Company = 'C', Email = 'b@b.com')
+        };
+        insert leads;
+        seedLeadMappings();
+        Test.setMock(HttpCalloutMock.class, new PersonMock(404,
+            '{"_errors":[{"code":"person_not_found","detail":"A matching person was not found"}],"object":"error"}'));
+
+        Test.startTest();
+        List<AmplemarketEnrichmentService.ServiceResult> res =
+            AmplemarketEnrichmentService.enrichBatch(new List<Id>{ leads[0].Id, leads[1].Id }, 'Lead');
+        Test.stopTest();
+
+        System.assertEquals(2, res.size());
+        for (AmplemarketEnrichmentService.ServiceResult r : res) {
+            System.assertEquals(false, r.success);
+            System.assertEquals(0, r.creditsUsed);
+        }
+        System.assertEquals(2, [SELECT COUNT() FROM Enrichment_Log__c WHERE Status__c = 'No Match']);
+        System.assertEquals(0, [SELECT COUNT() FROM Enrichment_Log__c WHERE Status__c = 'Error']);
+    }
+
+    @IsTest
+    static void genuineApiErrorsStillReportAsErrors() {
+        Lead l = new Lead(LastName = 'X', Company = 'Y', Email = 'a@b.com');
+        insert l;
+        seedLeadMappings();
+        Test.setMock(HttpCalloutMock.class, new PersonMock(500, '{"message":"boom"}'));
+
+        Test.startTest();
+        AmplemarketEnrichmentService.ServiceResult res =
+            AmplemarketEnrichmentService.enrichSingle(l.Id, 'Lead');
+        Test.stopTest();
+
+        System.assertEquals('Error',
+            [SELECT Status__c FROM Enrichment_Log__c WHERE Id = :res.logId].Status__c,
+            'Non-404 failures must still be errors');
+        System.assert(res.message.contains('500'), res.message);
     }
 
     @IsTest

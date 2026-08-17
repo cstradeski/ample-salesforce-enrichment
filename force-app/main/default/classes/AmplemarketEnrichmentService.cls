@@ -291,6 +291,17 @@ public with sharing class AmplemarketEnrichmentService {
             return result;
         }
 
+        // A 404 from /people/find or /companies/find means Amplemarket simply has no
+        // matching record. That is an ordinary outcome, not a failure — no credits are
+        // charged — so report it as No Match rather than an API error.
+        if (isNoMatch(http)) {
+            result.message = noMatchMessage(objApi, http.body);
+            result.appliedFieldsHtml = noMatchHtml(objApi, http.body);
+            result.logId = writeLog(recordId, objApi, endpoint, 'No Match',
+                JSON.serialize(queryParams), http.body, result.message, null, started);
+            return result;
+        }
+
         if (!http.isSuccess()) {
             result.message = 'API returned ' + http.statusCode + ': ' + http.status;
             result.appliedFieldsHtml = errorHtml(result.message);
@@ -424,6 +435,7 @@ public with sharing class AmplemarketEnrichmentService {
         List<SObject> toUpdateByIdx = new List<SObject>();
         List<AmplemarketFieldMapper.FieldMapResult> mapResByIdx = new List<AmplemarketFieldMapper.FieldMapResult>();
         List<CreditBreakdown> creditsByIdx = new List<CreditBreakdown>();
+        List<Boolean> noMatchByIdx = new List<Boolean>();
 
         // Weekly-limit enforcement inputs: read config + current usage once for the batch.
         Amplemarket_Credit_Config__c creditCfg = AmplemarketCreditMonitor.readConfig();
@@ -442,6 +454,7 @@ public with sharing class AmplemarketEnrichmentService {
             toUpdateByIdx.add(null);
             mapResByIdx.add(null);
             creditsByIdx.add(null);
+            noMatchByIdx.add(false);
 
             SObject record = sourceById.get(recId);
             if (record == null) {
@@ -516,6 +529,10 @@ public with sharing class AmplemarketEnrichmentService {
             if (errorByIdx[i] != null) continue;
             AmplemarketHttpClient.Result http = httpByIdx[i];
             if (http == null) continue;
+            if (isNoMatch(http)) {
+                noMatchByIdx[i] = true;
+                continue;
+            }
             if (!http.isSuccess()) {
                 errorByIdx[i] = 'API returned ' + http.statusCode + ': ' + http.status;
                 continue;
@@ -565,7 +582,16 @@ public with sharing class AmplemarketEnrichmentService {
             ServiceResult r = results[i];
             String reqJson = queryParamsByIdx[i] == null ? null : JSON.serialize(queryParamsByIdx[i]);
             String resBody = httpByIdx[i] == null ? null : httpByIdx[i].body;
-            if (errorByIdx[i] != null) {
+            if (noMatchByIdx[i]) {
+                String body = httpByIdx[i] == null ? null : httpByIdx[i].body;
+                r.success = false;
+                r.fieldsApplied = 0;
+                r.creditsUsed = 0;
+                r.message = noMatchMessage(objApi, body);
+                r.appliedFieldsHtml = noMatchHtml(objApi, body);
+                logs.add(buildLog(recordIds[i], objApi, endpointByIdx[i], 'No Match',
+                    reqJson, resBody, r.message, null, started));
+            } else if (errorByIdx[i] != null) {
                 r.message = errorByIdx[i];
                 r.appliedFieldsHtml = errorHtml(r.message);
                 r.success = false;
@@ -695,6 +721,69 @@ public with sharing class AmplemarketEnrichmentService {
         if (creditsUsed != null) {
             html += '<p><em>Amplemarket credits consumed: <strong>' + formatCredits(creditsUsed) + '</strong></em></p>';
         }
+        return html;
+    }
+
+    /**
+     * True when Amplemarket reports it has no matching record. /people/find and
+     * /companies/find answer a miss with HTTP 404 and a `*_not_found` error code
+     * (e.g. company_not_found) rather than an empty 200. No credits are charged.
+     */
+    @TestVisible
+    private static Boolean isNoMatch(AmplemarketHttpClient.Result http) {
+        if (http == null || http.statusCode != 404) return false;
+        // Any 404 on these endpoints is a miss; the body check is belt-and-braces so a
+        // genuinely bad path (which would also 404) still surfaces the error code text.
+        return true;
+    }
+
+    /** Pulls Amplemarket's human-readable reason out of an error body, when present. */
+    @TestVisible
+    private static String noMatchDetail(String body) {
+        if (String.isBlank(body)) return null;
+        try {
+            Object parsedBody = JSON.deserializeUntyped(body);
+            if (!(parsedBody instanceof Map<String, Object>)) return null;
+            // Amplemarket returns the array under "_errors"; accept "errors" too in case
+            // that ever changes.
+            Map<String, Object> root = (Map<String, Object>) parsedBody;
+            Object errs = root.containsKey('_errors') ? root.get('_errors') : root.get('errors');
+            if (!(errs instanceof List<Object>) || ((List<Object>) errs).isEmpty()) return null;
+            Object first = ((List<Object>) errs)[0];
+            if (!(first instanceof Map<String, Object>)) return null;
+            Map<String, Object> e = (Map<String, Object>) first;
+            Object detail = e.get('detail');
+            if (detail != null) return String.valueOf(detail);
+            Object title = e.get('title');
+            return title == null ? null : String.valueOf(title);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    @TestVisible
+    private static String noMatchMessage(String objectApiName, String body) {
+        String detail = noMatchDetail(body);
+        String what = AmplemarketDTO.isCompanyObject(objectApiName) ? 'company' : 'person';
+        return String.isNotBlank(detail)
+            ? 'No match found: ' + detail
+            : 'No matching ' + what + ' found in Amplemarket.';
+    }
+
+    @TestVisible
+    private static String noMatchHtml(String objectApiName, String body) {
+        String what = AmplemarketDTO.isCompanyObject(objectApiName) ? 'company' : 'person';
+        String detail = noMatchDetail(body);
+        String html = '<p><strong>No matching ' + what + ' was found in Amplemarket.</strong></p>';
+        if (String.isNotBlank(detail)) {
+            html += '<p>' + escapeHtml(detail) + '</p>';
+        }
+        html += '<p>No fields were changed and <strong>no credits were used</strong>. '
+            + 'Try adding another match input on the Amplemarket Mappings tab '
+            + (AmplemarketDTO.isCompanyObject(objectApiName)
+                ? '(a company <em>domain</em> usually matches more reliably than a LinkedIn URL).'
+                : '(for example email or LinkedIn URL).')
+            + '</p>';
         return html;
     }
 

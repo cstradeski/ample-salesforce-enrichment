@@ -1,13 +1,13 @@
 {
   "packageDirectories": [
     {
-      "versionName": "ver 0.5",
-      "versionNumber": "0.5.0.NEXT",
-      "ancestorVersion": "0.4.0",
+      "versionName": "ver 0.6",
+      "versionNumber": "0.6.0.NEXT",
+      "ancestorVersion": "0.5.0",
       "path": "force-app",
       "default": true,
       "package": "Amplemarket Enrichment",
-      "versionDescription": "Primary Location address fields for Account, per-run Reveal Email/Phone toggles in the enrichment flows, Auto-Layout template flows."
+      "versionDescription": "Credit tracking dashboard with per-category weekly limits, annual contract allowance, limit alerts and optional enforcement; weekly usage digest email; permission-free auto-enrichment for automated flows."
     }
   ],
   "name": "ample-salesforce-enrichment",
@@ -19,6 +19,7 @@
     "Amplemarket Enrichment@0.3.0-1": "04tdM000000TCc5QAG",
     "Amplemarket Enrichment@0.4.0-1": "04tdM000000TDBZQA4",
     "Amplemarket Enrichment@0.4.0-2": "04tdM000000TDDBQA4",
-    "Amplemarket Enrichment@0.5.0-1": "04tdM000000ZUHlQAO"
+    "Amplemarket Enrichment@0.5.0-1": "04tdM000000ZUHlQAO",
+    "Amplemarket Enrichment@0.6.0-1": "04tdM000000ariXQAQ"
   }
 }
